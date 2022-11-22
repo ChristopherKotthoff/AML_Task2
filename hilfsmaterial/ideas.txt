@@ -1,0 +1,7 @@
+- debrief aka. what went wrong in project 1?
+- how to split work this time (stages, approaches)
+- there are no "features": how to normalize/standardize?
+- investigate: can signal really be reduced to one representative heartbeat? (reconstruction)
+- what does the f1 score tell us about work prioritization?
+- how to handle class imbalance?
+- look for pca equivalent algorithm (unsupervised learning without y)

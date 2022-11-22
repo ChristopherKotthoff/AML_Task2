@@ -1,0 +1,23 @@
+
+
+ML Stages:
+1. finding peaks (auto regression?) -> check performance ... periodicity?
+2. using the library from biosppy to find some of the features
+3. outlier detection
+4. feature selection
+5. classification algos (attention: inverted features?)
+
+
+keep in mind:
+- class imbalance
+- there are no "features"
+- what does normalization mean?
+- investigate: can signal really be reduced to one representative heartbeat? (reconstruction) or does the whole signal count (e.g. arithmia)
+- changing the distance between peaks?
+- bins? - lower sampling rate (median, mean, ...)
+- wavelet transform?
+- doing classification on fourier transform?
+- different signal lengths
+
+
+Pipeline definitions: -> diagnostics (.json)?
