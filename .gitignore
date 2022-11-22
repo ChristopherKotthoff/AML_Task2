@@ -1,3 +1,6 @@
 venv/**
 cache/*
 __pycache__/**
+.breakpoints
+.replit
+replit.nix
