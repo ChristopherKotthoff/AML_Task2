@@ -7,3 +7,4 @@ replit.nix
 original_data/X_test.csv
 original_data/X_train.csv
 original_data/y_train.csv
+**/.ipynb_checkpoints

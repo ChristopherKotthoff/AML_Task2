@@ -23,7 +23,7 @@ def _load_dict(path):
 def pipeline(functionlist,
              hyperparameter_dictionary,
              use_cached_states=True,
-             save_states_to_cache=True, load_example_instead_of_huge_X_files=False):
+             save_states_to_cache=True):
   assert isinstance(functionlist, list)
   assert isinstance(hyperparameter_dictionary, Mapping) #test if dictionary
 
@@ -88,30 +88,11 @@ def pipeline(functionlist,
   if next_function == 0:
     if use_cached_states:
       print("No saved state found. Starting from beginning")
-      
-    if load_example_instead_of_huge_X_files:
+
       data_dict = {
         "a": 1,
         "b": 2,
         "c": 3,
-      }
-    else:
-      X_train = np.loadtxt("./original_data/X_train",
-                           dtype=float,
-                           delimiter=',',
-                           skiprows=1)[:, 1:]
-      y_train = np.loadtxt("./original_data/y_train",
-                           dtype=float,
-                           delimiter=',',
-                           skiprows=1)[:, 1:]
-      X_test = np.loadtxt("./original_data/X_test",
-                          dtype=float,
-                          delimiter=',',
-                          skiprows=1)[:, 1:]
-      data_dict = {
-        "X_train": X_train,
-        "y_train": y_train,
-        "X_test": X_test,
       }
 
 
@@ -125,4 +106,3 @@ def pipeline(functionlist,
     if save_states_to_cache:
       _save_dict(function_information[i]["results_save_path"], data_dict)
   return data_dict
-#testing
