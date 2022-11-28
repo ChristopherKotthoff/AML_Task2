@@ -281,15 +281,21 @@ def execute_peak_detection(X, first_idx=0, last_idx=None, visualize = False, ver
         peak_mask, output_ts, score = detect_peaks_hazard_filtering(this_ts, visualize = visualize, verbose = verbose) #peak_detection
         detected_peaks_mask_ts_list.append((i+1, score, peak_mask, output_ts))
     '''
+    peak_masks_list = []
+    scores_list = []
     for i,this_ts in tqdm(enumerate(X)):
         if verbose:
             print("\nIndex of datapoint: "+str(i))
         #ts = np.asarray([int(x) for x in (X[i].split(","))])
         peak_mask, output_ts, score = detect_peaks_hazard_filtering(this_ts, visualize = visualize, verbose = verbose) #peak_detection
+       
+        peak_masks_list.append(peak_mask)
+        scores_list.append(score)
+
         detected_peaks_mask_ts_list.append((i+1, score, peak_mask, output_ts))
 
-    return detected_peaks_mask_ts_list
-
+    #return detected_peaks_mask_ts_list
+    return peak_masks_list, scores_list
 
 
 
@@ -332,20 +338,39 @@ def pipeline_stage_detect_peaks(data_dict, feature_name_line_included_in_X= Fals
     # starting from
     # first_idx and last_idx are possibilities to only work on a subset of the given X data - in default (first_idx=1, last_idx=None) the whole given dataset is covered 
     print("Detecting peaks in the train set ...")
-    train_peak_tuples = execute_peak_detection(train_X, first_idx = 0, last_idx = None, visualize=False, verbose=False)
+    train_peak_masks_list, train_scores_list = execute_peak_detection(train_X, first_idx = 0, last_idx = None, visualize=False, verbose=False) #TODO: receive a touple of arrays/lists from execute peak detection
     
     print("Detecting peaks in the test set ...")
-    test_peak_tuples = execute_peak_detection(test_X, first_idx = 0, last_idx = None, visualize=False, verbose=False)
+    test_peak_masks_list, test_scores_list = execute_peak_detection(test_X, first_idx = 0, last_idx = None, visualize=False, verbose=False)
 
     # train_peak_tuples: a list of elements (index_in_given_list: int, periodicity_score: double, peak_mask: list, analysed_datapoints_as_ts: list)
     output_dict = data_dict.copy()
-    output_dict["X_train_peak_tuples"] = train_peak_tuples
-    output_dict["X_test_peak_tuples"] = test_peak_tuples
+    #output_dict["X_train_peak_tuples"] = train_peak_tuples
+    #output_dict["X_test_peak_tuples"] = test_peak_tuples
+
+    
+    output_dict["train_rpeaks"] = peak_mask_to_rpeaks(train_peak_masks_list)
+    output_dict["test_rpeaks"] = peak_mask_to_rpeaks(test_peak_masks_list)
+    output_dict["train_peak_scores"] = train_scores_list
+    output_dict["test_peak_scores"] = test_scores_list
 
     print("Done.")
-
+    
     return output_dict
 
+
+
+def peak_mask_to_rpeaks(peak_mask):
+
+    rpeaks = []
+    for j in range(len(peak_mask)):
+        this_list = []
+        for i in range(len(peak_mask[j])):
+            if peak_mask[j][i] == 1:
+                this_list.append(i)
+        rpeaks.append(this_list)
+
+    return rpeaks
 
 
 '''
@@ -362,8 +387,8 @@ test_X = [(np.asarray([int(x) for x in (line.split(","))])) for line in test_X_s
 
 # create dictionary to feed into the pipeline
 input_dict = {}
-input_dict["X_train"] = train_X[627:650]
-input_dict["X_test"] = test_X[550:650]
+input_dict["X_train"] = train_X[645:650]
+input_dict["X_test"] = test_X[640:650]
 
 
 # The following can be used to get an insight into the detected peaks
@@ -375,7 +400,7 @@ input_dict["X_test"] = test_X[550:650]
 # This is how the peak detection should be called in the context of the pipline
 # output_dict = pipeline_stage_detect_peaks(input_dict = {}, feature_name_line_included_in_X = True, train_X_file_path="X_train.csv", test_X_file_path="X_test.csv")
 output_dict = pipeline_stage_detect_peaks(input_dict)
-print([score for i, score, a1, a2 in output_dict["train_X_peak_tuples"]])
-print([score for i, score, a1, a2 in output_dict["test_X_peak_tuples"]])
+#print(output_dict["train_rpeaks"])
+#print(output_dict["test_rpeaks"])
 print(output_dict.keys())
 '''
