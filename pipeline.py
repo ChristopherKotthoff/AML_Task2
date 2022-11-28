@@ -85,7 +85,7 @@ def pipeline(functionlist,
       if exists(function_information[i]["results_save_path"]+".pkl"):
         data_dict = _load_dict(function_information[i]["results_save_path"])
         next_function = i + 1
-        print(f"[Pipeline] Saved state found: {function_information[i]['results_save_path']}\n[Pipeline] Starting from function: {function_information[next_function]['function_name']}"
+        print(f"[Pipeline] Saved state found: {function_information[i]['results_save_path']}, starting from function: {function_information[next_function]['function_name']}"
         )
         break
 
