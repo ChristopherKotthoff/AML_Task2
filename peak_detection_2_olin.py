@@ -299,7 +299,7 @@ def execute_peak_detection(X, first_idx=0, last_idx=None, visualize = False, ver
 
 
 
-def pipeline_stage_detect_peaks(data_dict, feature_name_line_included_in_X= False, train_X_file_path = None, test_X_file_path= None, **args):
+def peakDetecOlin(data_dict, **args):
 #def pipeline_stage_detect_peaks(data_dict: dict, feature_name_line_included_in_X:bool = False, train_X_file_path:str = None, test_X_file_path:str = None, **args):
     '''
     This function provides a basic heartbeat peak detection on time series ECG data.
@@ -318,22 +318,30 @@ def pipeline_stage_detect_peaks(data_dict, feature_name_line_included_in_X= Fals
             peak_mask: 0 for indeces that are not a peak, 1 for indices that are a peak in analysed_datapoints_as_ts
     '''
 
-    print("Loading data ...")
-    if train_X_file_path != None:
-        train_X_file = open(train_X_file_path, 'r')
-        train_X_str = train_X_file.readlines()
-        train_X = [(np.asarray([int(x) for x in (line.split(","))])) for line in train_X_str[int(feature_name_line_included_in_X):]]
-    else:
-        train_X = data_dict["X_train"]
+    assert "X_train" in data_dict.keys()
+    assert "X_test" in data_dict.keys()
+
+
+    train_X = []
+    for ts in tqdm(data_dict["X_train"]):
+        try:
+            firstnan = np.where(np.isnan(ts))[0][0]
+        except:
+            firstnan = len(ts)
+        train_X.append(ts[0:firstnan])
+
+
+    test_X = []
+    for ts in tqdm(data_dict["X_test"]):
+        try:
+            firstnan = np.where(np.isnan(ts))[0][0]
+        except:
+            firstnan = len(ts)
+        test_X.append(ts[0:firstnan])
+
+
+
         # might have to do some nan filtering here since the code takes
-
-
-    if test_X_file_path != None:
-        test_X_file = open(test_X_file_path, 'r')
-        test_X_str = test_X_file.readlines()
-        test_X = [(np.asarray([int(x) for x in (line.split(","))])) for line in test_X_str[int(feature_name_line_included_in_X):]]
-    else:
-        test_X = data_dict["X_test"]
 
     # starting from
     # first_idx and last_idx are possibilities to only work on a subset of the given X data - in default (first_idx=1, last_idx=None) the whole given dataset is covered 
