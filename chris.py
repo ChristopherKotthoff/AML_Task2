@@ -6,6 +6,7 @@ from tqdm import tqdm
 from random import randint
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+import pandas as pd
 
 def ldData(data_dict, **args):
     with open("./original_data/X_train.csv") as file:
@@ -220,6 +221,16 @@ def makeTrainValSet(data_dict,makeTrainValSet_valPercent=0.1, **args):
   assert data_dict["y_val"].shape[1] == 1
 
   return data_dict
+
+
+def savePred(data_dict, **args):
+    assert "y_test" in data_dict.keys()
+    
+    y_predict = pd.DataFrame(data_dict["y_test"])
+    y_predict.index.name = "id"
+    y_predict.to_csv( r'predictions/y_predict.csv', index = True, header = [ "y" ])
+    
+    return data_dict
 
 '''def synchronizeTemplates(data_dict,**args):
 

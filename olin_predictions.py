@@ -1,4 +1,6 @@
-from biosppy.signals.tools import pearson_correlation, rms_error, synchronize
+from biosppy.signals.tools import rms_error, synchronize
+from biosppy.stats import pearson_correlation
+import numpy as np
 
 
 def allignedSimilarity(median_ts1, median_ts2):
@@ -44,23 +46,23 @@ def predictSingleDatapointSimilarity(data_dict, to_predict, **args):
     similarity_list = []
     for i, train_datapoint in enumerate(train_median_curves):
         pearson_corr, rmse = inversionSafeAllignedSimilarity(to_predict, train_datapoint)
-        similarity_list.append(pearson_corr, rmse, train_labels[i])
+        similarity_list.append((pearson_corr, rmse, train_labels[i,0]))
     
     # sort list by rmse 
     similarity_list.sort(reverse=True, key=lambda x: x[1])
-    similar_labels = [lab for corr, rmse, lab in similarity_list[:23]]
+    similar_labels = [lab for corr, rmse, lab in similarity_list[:6]]
     
     majority_prediction = max(set(similar_labels), key = similar_labels.count)
     
     return majority_prediction  
     
 
-def predictSimilarty(data_dict, **args):
+def predictSimilarity(data_dict, **args):
     '''
     This function applies predictSingleDatapointSimilarity() for every point that has to be predicted in X_test.
     '''
 
-    test_median_curves = data_dict["X_test"]
+    test_median_curves = data_dict["X_train"]
 
     predictions = []
     for this_testpoint in test_median_curves:
