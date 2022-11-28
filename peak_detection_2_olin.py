@@ -7,6 +7,7 @@ from scipy.signal import find_peaks
 
 def compute_deviation_from_avg(ts, left_window, right_window):
     # a preprocessing step for the detect_peaks() function that uses the find_peaks() from scipy.signal
+    ts = np.array(ts)
     div_from_avg = np.zeros(len(ts))
     for idx in range(len(ts[left_window:-right_window])):
         window = abs(ts[idx-left_window : idx+right_window])
@@ -24,6 +25,8 @@ def score_peak_periodicity(peaks, error_margin_perc = 10):
     # evaluates how many of the intervals between the peaks have the same length (up to an error_margin)
     last_idx = 0
     period_lengths = []
+    if not isinstance(peaks, list):
+        return 0
     for i in range(len(peaks)):
         if peaks[i] == 1:
             period_lengths.append(i - last_idx)
@@ -269,11 +272,18 @@ def execute_peak_detection(X, first_idx=0, last_idx=None, visualize = False, ver
         last_idx = len(X)-1
     detected_peaks_mask_ts_list = []
 
-    for i in tqdm(range(first_idx, last_idx)):
+    '''   for i in tqdm(range(first_idx, last_idx)):
         if verbose:
             print("\nIndex of datapoint: "+str(i))
         #ts = np.asarray([int(x) for x in (X[i].split(","))])
         this_ts = X[i]
+        peak_mask, output_ts, score = detect_peaks_hazard_filtering(this_ts, visualize = visualize, verbose = verbose) #peak_detection
+        detected_peaks_mask_ts_list.append((i+1, score, peak_mask, output_ts))
+    '''
+    for i,this_ts in tqdm(enumerate(X)):
+        if verbose:
+            print("\nIndex of datapoint: "+str(i))
+        #ts = np.asarray([int(x) for x in (X[i].split(","))])
         peak_mask, output_ts, score = detect_peaks_hazard_filtering(this_ts, visualize = visualize, verbose = verbose) #peak_detection
         detected_peaks_mask_ts_list.append((i+1, score, peak_mask, output_ts))
 
@@ -282,7 +292,8 @@ def execute_peak_detection(X, first_idx=0, last_idx=None, visualize = False, ver
 
 
 
-def pipeline_stage_detect_peaks(input_dict: dict, feature_name_line_included_in_X:bool = False, train_X_file_path:str = None, test_X_file_path:str = None):
+def pipeline_stage_detect_peaks(data_dict, feature_name_line_included_in_X= False, train_X_file_path = None, test_X_file_path= None, **args):
+#def pipeline_stage_detect_peaks(data_dict: dict, feature_name_line_included_in_X:bool = False, train_X_file_path:str = None, test_X_file_path:str = None, **args):
     '''
     This function provides a basic heartbeat peak detection on time series ECG data.
     A periodicity score is introduced to evaluate how rhythmic the found peaks are. This can be used to estimate the performance of the peak detection.
@@ -306,7 +317,7 @@ def pipeline_stage_detect_peaks(input_dict: dict, feature_name_line_included_in_
         train_X_str = train_X_file.readlines()
         train_X = [(np.asarray([int(x) for x in (line.split(","))])) for line in train_X_str[int(feature_name_line_included_in_X):]]
     else:
-        train_X = input_dict["train_X"]
+        train_X = data_dict["X_train"]
         # might have to do some nan filtering here since the code takes
 
 
@@ -315,7 +326,7 @@ def pipeline_stage_detect_peaks(input_dict: dict, feature_name_line_included_in_
         test_X_str = test_X_file.readlines()
         test_X = [(np.asarray([int(x) for x in (line.split(","))])) for line in test_X_str[int(feature_name_line_included_in_X):]]
     else:
-        test_X = input_dict["test_X"]
+        test_X = data_dict["X_test"]
 
     # starting from
     # first_idx and last_idx are possibilities to only work on a subset of the given X data - in default (first_idx=1, last_idx=None) the whole given dataset is covered 
@@ -326,9 +337,9 @@ def pipeline_stage_detect_peaks(input_dict: dict, feature_name_line_included_in_
     test_peak_tuples = execute_peak_detection(test_X, first_idx = 0, last_idx = None, visualize=False, verbose=False)
 
     # train_peak_tuples: a list of elements (index_in_given_list: int, periodicity_score: double, peak_mask: list, analysed_datapoints_as_ts: list)
-    output_dict = input_dict.copy()
-    output_dict["train_X_peak_tuples"] = train_peak_tuples
-    output_dict["test_X_peak_tuples"] = test_peak_tuples
+    output_dict = data_dict.copy()
+    output_dict["X_train_peak_tuples"] = train_peak_tuples
+    output_dict["X_test_peak_tuples"] = test_peak_tuples
 
     print("Done.")
 
@@ -337,7 +348,7 @@ def pipeline_stage_detect_peaks(input_dict: dict, feature_name_line_included_in_
 
 
 
-# Lets execute this code!
+'''# Lets execute this code!
 
 # Load the data
 train_X_file = open("X_train.csv", 'r')
@@ -367,3 +378,4 @@ print([score for i, score, a1, a2 in output_dict["train_X_peak_tuples"]])
 print([score for i, score, a1, a2 in output_dict["test_X_peak_tuples"]])
 print(output_dict.keys())
 
+'''
