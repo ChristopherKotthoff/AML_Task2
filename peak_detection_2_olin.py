@@ -25,7 +25,7 @@ def score_peak_periodicity(peaks, error_margin_perc = 10):
     # evaluates how many of the intervals between the peaks have the same length (up to an error_margin)
     last_idx = 0
     period_lengths = []
-    if not isinstance(peaks, list):
+    if not isinstance(peaks, list) and not isinstance(peaks, np.ndarray):
         return 0
     for i in range(len(peaks)):
         if peaks[i] == 1:
@@ -106,9 +106,9 @@ def filter_periodicity_hazard_peaks(ts, peaks, error_margin_perc = 20):
             last_idx = i
 
     # delete the first period length, since it includes noise
-    period_lengths = period_lengths[1:-1]
+
     if len(period_lengths) == 0:
-        return 0
+        return np.asarray([])
     else: 
         avg_period_length = np.median([len for len, a, b, in period_lengths])
         #avg_period_length = sum(period_lengths)/len(period_lengths)
@@ -146,6 +146,7 @@ def filter_periodicity_hazard_peaks(ts, peaks, error_margin_perc = 20):
                     #print("Periodicity Score after hazard removel: "+str(hazard_score))
                     #show_detected_peaks(ts, hazard_peaks)
                     return hazard_peaks
+    
     return hazard_peaks
 
 
@@ -190,7 +191,7 @@ def filter_periodicity_hazard_gaps(ts, peaks, error_margin_perc = 80):
                 print(window_ts)
                 print(window_ts.shape)
 
-    return 0
+    return np.asarray([0])
 
 
 
@@ -347,8 +348,8 @@ def pipeline_stage_detect_peaks(data_dict, feature_name_line_included_in_X= Fals
 
 
 
-
-'''# Lets execute this code!
+'''
+# Lets execute this code!
 
 # Load the data
 train_X_file = open("X_train.csv", 'r')
@@ -361,14 +362,14 @@ test_X = [(np.asarray([int(x) for x in (line.split(","))])) for line in test_X_s
 
 # create dictionary to feed into the pipeline
 input_dict = {}
-input_dict["train_X"] = train_X[:5]
-input_dict["test_X"] = test_X[:5]
+input_dict["X_train"] = train_X[627:650]
+input_dict["X_test"] = test_X[550:650]
 
 
 # The following can be used to get an insight into the detected peaks
 # visualizes all samples from sample nr (row-nr) 1234 to sample nr (row-nr) 1254
-output_tuples_of_scores_peaks_ts = execute_peak_detection(train_X, first_idx = 1234, last_idx = 1254, visualize=True, verbose=True)
-print(output_tuples_of_scores_peaks_ts)
+#output_tuples_of_scores_peaks_ts = execute_peak_detection(train_X, first_idx = 628, last_idx = 1254, visualize=True, verbose=True)
+#print(output_tuples_of_scores_peaks_ts)
 
 
 # This is how the peak detection should be called in the context of the pipline
@@ -377,5 +378,4 @@ output_dict = pipeline_stage_detect_peaks(input_dict)
 print([score for i, score, a1, a2 in output_dict["train_X_peak_tuples"]])
 print([score for i, score, a1, a2 in output_dict["test_X_peak_tuples"]])
 print(output_dict.keys())
-
 '''
