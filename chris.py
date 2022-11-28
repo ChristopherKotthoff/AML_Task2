@@ -97,7 +97,7 @@ def biosppyExtract(data_dict, **args):
       firstnan = np.where(np.isnan(ts))[0][0]
     except:
       firstnan = len(ts)
-    heartbeat_templates_train.append(extract_heartbeats(ts[:firstnan],data_dict["train_rpeaks"],sampling_rate=300))
+    heartbeat_templates_train.append(extract_heartbeats(ts[:firstnan],data_dict["train_rpeaks"],sampling_rate=300)[0])
 
   heartbeat_templates_test = []
 
@@ -106,7 +106,7 @@ def biosppyExtract(data_dict, **args):
       firstnan = np.where(np.isnan(ts))[0][0]
     except:
       firstnan = len(ts)
-    heartbeat_templates_test.append(extract_heartbeats(ts[:firstnan],data_dict["test_rpeaks"],sampling_rate=300))
+    heartbeat_templates_test.append(extract_heartbeats(ts[:firstnan],data_dict["test_rpeaks"],sampling_rate=300)[0])
 
   data_dict["heartbeat_templates_train"] = heartbeat_templates_train
   data_dict["heartbeat_templates_test"] = heartbeat_templates_test
