@@ -35,7 +35,7 @@ def pipeline(functionlist,
     if str(inspect.signature(f))[-7:] != "**args)" or str(
         inspect.signature(f))[:11] != "(data_dict,":
       raise Exception(
-        f"\n\n[Pipeline] Function header is wrong. It has to be like this:\ndef {f.__name__}(data_dict, ..., **args):\nwhere \"...\" are the non-data hyperparameters that you use for your method."
+        f"\n\n[Pipeline] Function header is wrong. It has to be like this:\n[Pipeline] def {f.__name__}(data_dict, ..., **args):\n[Pipeline] where \"...\" are the non-data hyperparameters that you use for your method."
       )
 
     hyperparameters = str(inspect.signature(f))[1:-1].split(", ")[1:-1]
@@ -54,19 +54,23 @@ def pipeline(functionlist,
     if pos_index != 0:
       path+="_"
     
-    path += f.__name__+"("
+    
+    function_call_string = f.__name__+"("
     for j, v in enumerate(hyperparameters_values):
-      path += str(v)
+      function_call_string += str(v)
       if j != len(hyperparameters_values)-1:
-        path+=","
-    path += ")"
+        function_call_string+=","
+    function_call_string += ")"
+
+    path+=function_call_string
 
     dict = {
       "function": f,
       "function_name": f.__name__,
       "hyperparameters": str(inspect.signature(f))[1:-1].split(", ")[1:-1],
       "hyperparameters_values": hyperparameters_values,
-      "results_save_path": path
+      "results_save_path": path,
+      "function_call_string": function_call_string
     }
     function_information.append(dict)
 
@@ -81,13 +85,13 @@ def pipeline(functionlist,
       if exists(function_information[i]["results_save_path"]+".pkl"):
         data_dict = _load_dict(function_information[i]["results_save_path"])
         next_function = i + 1
-        print(f"[Pipeline] Saved state found: {function_information[i]['results_save_path']}\nStarting from function: {function_information[next_function]['function_name']}"
+        print(f"[Pipeline] Saved state found: {function_information[i]['results_save_path']}\n[Pipeline] Starting from function: {function_information[next_function]['function_name']}"
         )
         break
 
   if next_function == 0:
     if use_cached_states:
-      print("No saved state found. Starting from beginning")
+      print("[Pipeline] No saved state found. Starting from beginning")
 
       data_dict = {
         "a": 1,
@@ -97,6 +101,7 @@ def pipeline(functionlist,
 
 
   for i in range(next_function, len(function_information)):
+    print(f"[Pipeline] executing: {function_information[i]['function_call_string']}")
     data_dict = function_information[i]["function"](data_dict, **hyperparameter_dictionary)
     if not isinstance(data_dict, Mapping):
       raise Exception("\n\n[Pipeline] "+

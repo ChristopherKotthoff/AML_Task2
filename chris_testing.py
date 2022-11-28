@@ -25,4 +25,4 @@ hyperparameter_dictionary = {"mlpClassification_epochs":20,
                             }
 
 final_data_dict = pipeline([ldData, custom, mlpClassification],hyperparameter_dictionary,save_states_to_cache=False)
-print(final_data_dict)
+#print(final_data_dict)
