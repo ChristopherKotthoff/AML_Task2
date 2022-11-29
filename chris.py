@@ -6,6 +6,7 @@ from tqdm import tqdm
 from random import randint
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+import pandas as pd
 
 def ldData(data_dict, **args):
     with open("./original_data/X_train.csv") as file:
@@ -94,7 +95,7 @@ def biosppyExtract(data_dict, **args):
   
   heartbeat_templates_train = []
 
-  for i, ts in tqdm(enumerate(data_dict["X_train"])):
+  for i, ts in enumerate(data_dict["X_train"]):
     try:
       firstnan = np.where(np.isnan(ts))[0][0]
     except:
@@ -103,7 +104,7 @@ def biosppyExtract(data_dict, **args):
 
   heartbeat_templates_test = []
 
-  for i, ts in tqdm(enumerate(data_dict["X_test"])):
+  for i, ts in enumerate(data_dict["X_test"]):
     try:
       firstnan = np.where(np.isnan(ts))[0][0]
     except:
@@ -192,11 +193,18 @@ def medmeanFeatures(data_dict, medmeanFeatures_useMedian=True,medmeanFeatures_us
       abweichung_features_test.append(np.median(np.abs(np_template),axis=0))
     else:
       abweichung_features_test.append(np.sqrt(np.mean(np.square(np_template),axis=0)))
+  
+  normal = len(mitte_features_train[0])
+  print(mitte_features_train)
+  print(normal)
+  for i in mitte_features_train:
+    if len(i)!=normal:
+      print(len(i))
 
-  mitte_features_train = np.array(mitte_features_train)
+  mitte_features_train = np.array(mitte_features_train, dtype=np.float32)
   mitte_features_test = np.array(mitte_features_test)
 
-  abweichung_features_train=np.array(abweichung_features_train)
+  abweichung_features_train=np.array(abweichung_features_train, dtype=np.float32)
   abweichung_features_test=np.array(abweichung_features_test)
 
 
@@ -220,6 +228,16 @@ def makeTrainValSet(data_dict,makeTrainValSet_valPercent=0.1, **args):
   assert data_dict["y_val"].shape[1] == 1
 
   return data_dict
+
+
+def savePred(data_dict, **args):
+    assert "y_test" in data_dict.keys()
+    
+    y_predict = pd.DataFrame(data_dict["y_test"])
+    y_predict.index.name = "id"
+    y_predict.to_csv( r'predictions/y_predict.csv', index = True, header = [ "y" ])
+    
+    return data_dict
 
 '''def synchronizeTemplates(data_dict,**args):
 

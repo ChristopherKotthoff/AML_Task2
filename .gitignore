@@ -9,3 +9,11 @@ original_data/X_train.csv
 original_data/y_train.csv
 **/.ipynb_checkpoints
 .vscode/settings.json
+.idea/workspace.xml
+.idea/vcs.xml
+.idea/modules.xml
+.idea/misc.xml
+.idea/inspectionProfiles/Project_Default.xml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/AML_Task2.iml
+credentials.txt
