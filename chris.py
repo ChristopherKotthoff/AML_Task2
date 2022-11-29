@@ -193,11 +193,18 @@ def medmeanFeatures(data_dict, medmeanFeatures_useMedian=True,medmeanFeatures_us
       abweichung_features_test.append(np.median(np.abs(np_template),axis=0))
     else:
       abweichung_features_test.append(np.sqrt(np.mean(np.square(np_template),axis=0)))
+  
+  normal = len(mitte_features_train[0])
+  print(mitte_features_train)
+  print(normal)
+  for i in mitte_features_train:
+    if len(i)!=normal:
+      print(len(i))
 
-  mitte_features_train = np.array(mitte_features_train)
+  mitte_features_train = np.array(mitte_features_train, dtype=np.float32)
   mitte_features_test = np.array(mitte_features_test)
 
-  abweichung_features_train=np.array(abweichung_features_train)
+  abweichung_features_train=np.array(abweichung_features_train, dtype=np.float32)
   abweichung_features_test=np.array(abweichung_features_test)
 
 
