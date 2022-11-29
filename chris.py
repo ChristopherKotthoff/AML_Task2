@@ -94,7 +94,7 @@ def biosppyExtract(data_dict, **args):
   
   heartbeat_templates_train = []
 
-  for i, ts in tqdm(enumerate(data_dict["X_train"])):
+  for i, ts in enumerate(data_dict["X_train"]):
     try:
       firstnan = np.where(np.isnan(ts))[0][0]
     except:
@@ -103,7 +103,7 @@ def biosppyExtract(data_dict, **args):
 
   heartbeat_templates_test = []
 
-  for i, ts in tqdm(enumerate(data_dict["X_test"])):
+  for i, ts in enumerate(data_dict["X_test"]):
     try:
       firstnan = np.where(np.isnan(ts))[0][0]
     except:

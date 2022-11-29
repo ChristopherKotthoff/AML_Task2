@@ -6,8 +6,8 @@ from peak_detection_2_olin import peakDetecOlin
 from heinrich import crop, inv
 
 def custom(data_dict, **args):
-    data_dict["X_train"] = data_dict["X_train"][:10]
-    data_dict["y_train"] = data_dict["y_train"][:10]
+    data_dict["X_train"] = data_dict["X_train"][885:888]
+    data_dict["y_train"] = data_dict["y_train"][885:888]
     data_dict["X_test"] = data_dict["X_test"][:10]
 
     return data_dict
@@ -24,5 +24,5 @@ hyperparameter_dictionary = {"mlpClassification_epochs":20,
                             }
 
 #final_data_dict = pipeline([ldData, custom, mlpClassification],hyperparameter_dictionary,save_states_to_cache=False)
-final_data_dict = pipeline([ldData, custom, crop, inv, peakDetecOlin, biosppyExtract, medmeanFeatures,makeTrainValSet,mlpClassification],hyperparameter_dictionary,save_states_to_cache=False)
+final_data_dict = pipeline([ldData, crop, inv, custom, biosppyRPeaks, biosppyExtract, medmeanFeatures, makeTrainValSet, mlpClassification],hyperparameter_dictionary,save_states_to_cache=False)
 print(final_data_dict)
