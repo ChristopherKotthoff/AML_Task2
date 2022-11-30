@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 import pandas as pd
 from sklearn.metrics import f1_score
+import math
 
 
 def ldData(data_dict, **args):
@@ -165,7 +166,7 @@ def normalizeTemplates(data_dict,normalizeTemplates_normOverEntireTimeseries=Fal
     return data_dict
 
 
-def medmeanFeatures(data_dict, medmeanFeatures_useMedian=True,medmeanFeatures_useMedianSTD=True,**args):
+def medmeanFeatures(data_dict, medmeanFeatures_useMedian=True,medmeanFeatures_useMedianSTD=True, medmeanFeatures_shrinkingFactor=1,**args):
   assert "heartbeat_templates_train" in data_dict.keys()
   assert "heartbeat_templates_test" in data_dict.keys()
 
@@ -183,6 +184,7 @@ def medmeanFeatures(data_dict, medmeanFeatures_useMedian=True,medmeanFeatures_us
       mitte_features_test.append(np.median(np_template,axis=0))
     else:
       mitte_features_test.append(np.mean(np_template,axis=0))
+
   
   abweichung_features_train=[]
   abweichung_features_test=[]
@@ -207,12 +209,28 @@ def medmeanFeatures(data_dict, medmeanFeatures_useMedian=True,medmeanFeatures_us
   #    print(len(i))
 
   mitte_features_train = np.array(mitte_features_train, dtype=np.float32)
-  mitte_features_test = np.array(mitte_features_test)
+  mitte_features_test = np.array(mitte_features_test, dtype=np.float32)
 
   abweichung_features_train=np.array(abweichung_features_train, dtype=np.float32)
-  abweichung_features_test=np.array(abweichung_features_test)
+  abweichung_features_test=np.array(abweichung_features_test, dtype=np.float32)
 
+  if medmeanFeatures_shrinkingFactor != 1:
+    mitte_features_train_shrunk = np.empty((mitte_features_train.shape[0],math.ceil(mitte_features_train.shape[1]/float(medmeanFeatures_shrinkingFactor))), dtype=np.float32)
+    mitte_features_test_shrunk = np.empty((mitte_features_test.shape[0],math.ceil(mitte_features_test.shape[1]/float(medmeanFeatures_shrinkingFactor))), dtype=np.float32)
+    abweichung_features_train_shrunk = np.empty((abweichung_features_train.shape[0],math.ceil(abweichung_features_train.shape[1]/float(medmeanFeatures_shrinkingFactor))), dtype=np.float32)
+    abweichung_features_test_shrunk = np.empty((abweichung_features_test.shape[0],math.ceil(abweichung_features_test.shape[1]/float(medmeanFeatures_shrinkingFactor))), dtype=np.float32)
 
+    for col_index, i in enumerate(range(0,mitte_features_train.shape[1],medmeanFeatures_shrinkingFactor)):
+      mitte_features_train_shrunk[:,col_index:col_index+1] = np.mean(mitte_features_train[:,i:i+medmeanFeatures_shrinkingFactor],axis=1,keepdims=True)
+      mitte_features_test_shrunk[:,col_index:col_index+1] = np.mean(mitte_features_test[:,i:i+medmeanFeatures_shrinkingFactor],axis=1,keepdims=True)
+      abweichung_features_train_shrunk[:,col_index:col_index+1] = np.mean(abweichung_features_train[:,i:i+medmeanFeatures_shrinkingFactor],axis=1,keepdims=True)
+      abweichung_features_test_shrunk[:,col_index:col_index+1] = np.mean(abweichung_features_test[:,i:i+medmeanFeatures_shrinkingFactor],axis=1,keepdims=True)
+
+    mitte_features_train = mitte_features_train_shrunk
+    mitte_features_test = mitte_features_test_shrunk
+    abweichung_features_train=abweichung_features_train_shrunk
+    abweichung_features_test=abweichung_features_test_shrunk
+ 
   data_dict["X_train"] = np.append(mitte_features_train,abweichung_features_train,axis=1)
   data_dict["X_test"] = np.append(mitte_features_test,abweichung_features_test,axis=1)
 

@@ -35,6 +35,7 @@ hyperparameter_dictionary = {"mlpClassification_epochs":30,
                             "plotNormHeartbeat_index":6,
 
                             "normalizeTemplates_normOverEntireTimeseries":False,
+                            "medmeanFeatures_shrinkingFactor":3
                             }
 
 #final_data_dict = pipeline([ldData, custom, mlpClassification],hyperparameter_dictionary,save_states_to_cache=False)
