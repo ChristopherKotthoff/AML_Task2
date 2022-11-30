@@ -7,6 +7,8 @@ from random import randint
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 import pandas as pd
+from sklearn.metrics import f1_score
+
 
 def ldData(data_dict, **args):
     with open("./original_data/X_train.csv") as file:
@@ -355,6 +357,15 @@ def balanceStupid(data_dict, **args):
 
     return data_dict
 
+
+def NO_DISPLAY_plotLosses(data_dict, **args):
+  if "train_losses" in data_dict:
+    plt.plot(range(len(data_dict["train_losses"])),data_dict["train_losses"], label="train loss")
+    if "val_losses" in data_dict:
+      plt.plot(range(len(data_dict["train_losses"])),data_dict["val_losses"], label="val loss")
+      plt.title(f"hard F1 score on predicted validation set {f1_score(data_dict['y_val'], data_dict['y_val_predicted'],average='micro')}")
+    plt.legend()
+    plt.show()
 '''def synchronizeTemplates(data_dict,**args):
 
     assert "heartbeat_templates_train" in data_dict.keys()

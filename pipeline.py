@@ -51,7 +51,7 @@ def pipeline(functionlist,
           f"\n\n[Pipeline] No parameter in hyperparameter_dictionary for parameter {param_name} in method {f.__name__}. Also no default value set in function header."
         )
 
-    if pos_index != 0:
+    if pos_index != 0 and not "NO_DISPLAY_" in f.__name__:
       path+="_"
     
     

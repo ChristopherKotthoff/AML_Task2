@@ -1,7 +1,7 @@
 import pipeline
 import numpy as np
 from pipeline import pipeline
-from chris import ldData, mlpClassification, biosppyRPeaks, biosppyExtract, NO_DISPLAY_plotNormHeartbeat,normalizeTemplates,medmeanFeatures,makeTrainValSet,NO_DISPLAY_savePred, biosppyECG,balanceStupid
+from chris import ldData, mlpClassification, biosppyRPeaks, biosppyExtract, NO_DISPLAY_plotNormHeartbeat,normalizeTemplates,medmeanFeatures,makeTrainValSet,NO_DISPLAY_savePred, biosppyECG,balanceStupid, NO_DISPLAY_plotLosses
 from peak_detection_2_olin import peakDetecOlin
 from heinrich import crop, inv
 from olin_predictions import predictSimilarity
@@ -39,13 +39,7 @@ hyperparameter_dictionary = {"mlpClassification_epochs":30,
 
 #final_data_dict = pipeline([ldData, custom, mlpClassification],hyperparameter_dictionary,save_states_to_cache=False)
 #final_data_dict = pipeline([ldData, custom, crop, inv, peakDetecOlin, biosppyExtract, medmeanFeatures,makeTrainValSet,predictSimilarity,savePred],hyperparameter_dictionary,save_states_to_cache=True)
-final_data_dict = pipeline([ldData, custom, crop, inv, biosppyECG, medmeanFeatures,makeTrainValSet,balanceStupid,mlpClassification,NO_DISPLAY_savePred],hyperparameter_dictionary,save_states_to_cache=True)
-if "train_losses" in final_data_dict:
-  plt.plot(range(len(final_data_dict["train_losses"])),final_data_dict["train_losses"], label="train loss")
-  if "val_losses" in final_data_dict:
-    plt.plot(range(len(final_data_dict["train_losses"])),final_data_dict["val_losses"], label="val loss")
-  plt.legend()
-  plt.show()
+final_data_dict = pipeline([ldData, custom, crop, inv, biosppyECG, medmeanFeatures,makeTrainValSet,balanceStupid,mlpClassification,NO_DISPLAY_savePred,NO_DISPLAY_plotLosses],hyperparameter_dictionary,save_states_to_cache=True)
 
 if "y_val_predicted" in final_data_dict:
   confMat(final_data_dict["y_val_predicted"].reshape(-1), final_data_dict["y_val"].reshape(-1), visualize = True)
