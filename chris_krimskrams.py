@@ -94,7 +94,7 @@ def _predict(model, X, mean, std):
         for x in test_loader:
             x = x.to(device).float()
             predictions = model(x).detach().cpu().numpy()
-            return np.argmax(predictions, axis=1, keepdims=True)
+            return np.argmax(predictions, axis=1)
 
 def train(epochs, X_train, y_train, X_val, y_val, batch_size=32):
     train_set = TrainDataset(X_train, y_train)
