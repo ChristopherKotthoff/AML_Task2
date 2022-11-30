@@ -1,6 +1,7 @@
 from biosppy.signals.tools import rms_error, synchronize
 from biosppy.stats import pearson_correlation
 import numpy as np
+from tqdm import tqdm
 
 
 def allignedSimilarity(median_ts1, median_ts2):
@@ -62,10 +63,10 @@ def predictSimilarity(data_dict, **args):
     This function applies predictSingleDatapointSimilarity() for every point that has to be predicted in X_test.
     '''
 
-    test_median_curves = data_dict["X_train"]
+    test_median_curves = data_dict["X_train"][:20]
 
     predictions = []
-    for this_testpoint in test_median_curves:
+    for this_testpoint in tqdm(test_median_curves):
         pred = predictSingleDatapointSimilarity(data_dict, this_testpoint, **args)
         predictions.append(pred)
 

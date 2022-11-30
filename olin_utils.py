@@ -1,5 +1,6 @@
 from sklearn.metrics import ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
+import numpy as np
 
 def confMat(pred_labels, true_labels, visualize = False):
     '''

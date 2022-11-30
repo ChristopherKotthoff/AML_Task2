@@ -102,6 +102,7 @@ def pipeline(functionlist,
 
   for i in range(next_function, len(function_information)):
     print(f"[Pipeline] executing: {function_information[i]['function_call_string']}")
+    data_dict["_current_function_information_"] = function_information[i]
     data_dict = function_information[i]["function"](data_dict, **hyperparameter_dictionary)
     if not isinstance(data_dict, Mapping):
       raise Exception("\n\n[Pipeline] "+

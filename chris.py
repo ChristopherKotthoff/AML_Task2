@@ -1,6 +1,6 @@
 import numpy as np
 import chris_krimskrams
-from biosppy.signals.ecg import christov_segmenter, extract_heartbeats
+from biosppy.signals.ecg import christov_segmenter, extract_heartbeats, ecg
 from biosppy.signals.tools import normalize, synchronize
 from tqdm import tqdm
 from random import randint
@@ -54,6 +54,9 @@ def mlpClassification(data_dict, mlpClassification_epochs, mlpClassification_use
 
   if mlpClassification_makePrediction:
     data_dict["y_test"] = predict_funct(data_dict["X_test"])
+
+  if mlpClassification_useValidationSet:
+    data_dict["y_val_predicted"] = predict_funct(data_dict["X_val"])
 
 
   return data_dict
@@ -214,6 +217,49 @@ def medmeanFeatures(data_dict, medmeanFeatures_useMedian=True,medmeanFeatures_us
   return data_dict
 
 
+def biosppyECG(data_dict, **args):
+  assert "X_train" in data_dict.keys()
+  assert "X_test" in data_dict.keys()
+  
+  train_rpeaks = []
+  train_templates = []
+  train_heart_rate= []
+
+  for ts in tqdm(data_dict["X_train"]):
+    try:
+      firstnan = np.where(np.isnan(ts))[0][0]
+    except:
+      firstnan = len(ts)
+    ret = ecg(signal=ts[:firstnan], sampling_rate=300,show=False)
+    train_rpeaks.append(ret["rpeaks"])
+    train_templates.append(ret["templates"])
+    train_heart_rate.append(ret["heart_rate"])
+
+  test_rpeaks = []
+  test_templates = []
+  test_heart_rate= []
+
+  for ts in tqdm(data_dict["X_test"]):
+    try:
+      firstnan = np.where(np.isnan(ts))[0][0]
+    except:
+      firstnan = len(ts)
+    ret = ecg(signal=ts[:firstnan], sampling_rate=300,show=False)
+    test_rpeaks.append(ret["rpeaks"])
+    test_templates.append(ret["templates"])
+    test_heart_rate.append(ret["heart_rate"])
+
+  #data_dict["train_rpeaks"] = train_rpeaks
+  data_dict["heartbeat_templates_train"] = train_templates
+  data_dict["heart_rate_train"] = train_heart_rate
+
+  #data_dict["test_rpeaks"] = test_rpeaks
+  data_dict["heartbeat_templates_test"] = test_templates
+  data_dict["heart_rate_test"] = test_heart_rate
+
+  return data_dict
+
+
 def makeTrainValSet(data_dict,makeTrainValSet_valPercent=0.1, **args):
   assert "X_train" in data_dict.keys()
   assert "X_test" in data_dict.keys()
@@ -235,8 +281,78 @@ def savePred(data_dict, **args):
     
     y_predict = pd.DataFrame(data_dict["y_test"])
     y_predict.index.name = "id"
-    y_predict.to_csv( r'predictions/y_predict.csv', index = True, header = [ "y" ])
+    y_predict.to_csv( r'predictions/y__'+data_dict["_current_function_information_"]["results_save_path"].replace("./cache/","")+'.csv', index = True, header = [ "y" ])
     
+    return data_dict
+
+def balanceStupid(data_dict, **args):
+    assert "X_train" in data_dict.keys()
+    assert "y_train" in data_dict.keys()
+    
+    yANDx = np.append(data_dict["y_train"], data_dict["X_train"],axis=1)
+    np.random.shuffle(yANDx)
+
+    classes = []
+    for i in range(4):
+      classes.append(yANDx[yANDx[:,0]==i])
+    
+    max_entries = max(list(map(lambda x: x.shape[0], classes)))
+
+    newClasses = []
+
+    for i,c in enumerate(classes):
+      newClasses.append(c)
+      datapoints = c.shape[0]
+      while True:
+        new_datapoints = newClasses[i].shape[0]
+        newPoints = min(datapoints,max_entries-new_datapoints)
+        if newPoints == 0:
+          break
+        else:
+          newClasses[i] = np.append(newClasses[i],c[:newPoints],axis=0)
+
+    yANDx = newClasses[0]
+    for i in range(1,len(newClasses)):
+      yANDx = np.append(yANDx, newClasses[i], axis=0)
+    np.random.shuffle(yANDx)
+
+    data_dict["y_train"] = yANDx[:,0:1].astype(np.intc)
+    data_dict["X_train"] = yANDx[:,1:]
+
+    if "X_val" in data_dict.keys() and "y_val" in data_dict.keys():
+      yANDx = np.append(data_dict["y_val"], data_dict["X_val"],axis=1)
+      np.random.shuffle(yANDx)
+
+      classes = []
+      for i in range(4):
+        classes.append(yANDx[yANDx[:,0]==i])
+      
+      max_entries = max(list(map(lambda x: x.shape[0], classes)))
+
+      newClasses = []
+
+      for i,c in enumerate(classes):
+        newClasses.append(c)
+        datapoints = c.shape[0]
+        while True:
+          new_datapoints = newClasses[i].shape[0]
+          newPoints = min(datapoints,max_entries-new_datapoints)
+          if newPoints == 0:
+            break
+          else:
+            newClasses[i] = np.append(newClasses[i],c[:newPoints],axis=0)
+
+      yANDx = newClasses[0]
+      for i in range(1,len(newClasses)):
+        yANDx = np.append(yANDx, newClasses[i], axis=0)
+      np.random.shuffle(yANDx)
+
+      data_dict["y_val"] = yANDx[:,0:1].astype(np.intc)
+      data_dict["X_val"] = yANDx[:,1:]
+    else:
+      print("Warning. Make sure you are creating a validation set before calling this method in case you want to use one.")
+
+
     return data_dict
 
 '''def synchronizeTemplates(data_dict,**args):
