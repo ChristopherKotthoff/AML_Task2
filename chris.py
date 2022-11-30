@@ -120,7 +120,7 @@ def biosppyExtract(data_dict, **args):
   return data_dict
 
 
-def plotNormHeartbeat(data_dict,plotNormHeartbeat_index=None,**args):
+def NO_DISPLAY_plotNormHeartbeat(data_dict,plotNormHeartbeat_index=None,**args):
 
     assert "heartbeat_templates_train" in data_dict.keys()
 
@@ -276,7 +276,7 @@ def makeTrainValSet(data_dict,makeTrainValSet_valPercent=0.1, **args):
   return data_dict
 
 
-def savePred(data_dict, **args):
+def NO_DISPLAY_savePred(data_dict, **args):
     assert "y_test" in data_dict.keys()
     
     y_predict = pd.DataFrame(data_dict["y_test"])

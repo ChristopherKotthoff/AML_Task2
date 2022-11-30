@@ -17,3 +17,6 @@ original_data/y_train.csv
 .idea/inspectionProfiles/profiles_settings.xml
 .idea/AML_Task2.iml
 credentials.txt
+predictions/*
+.vscode/launch.json
+.vscode/launch.json

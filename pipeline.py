@@ -55,14 +55,16 @@ def pipeline(functionlist,
       path+="_"
     
     
+    
     function_call_string = f.__name__+"("
     for j, v in enumerate(hyperparameters_values):
       function_call_string += str(v)
       if j != len(hyperparameters_values)-1:
         function_call_string+=","
     function_call_string += ")"
-
-    path+=function_call_string
+    
+    if not "NO_DISPLAY_" in f.__name__:
+      path+=function_call_string
 
     dict = {
       "function": f,
@@ -70,7 +72,8 @@ def pipeline(functionlist,
       "hyperparameters": str(inspect.signature(f))[1:-1].split(", ")[1:-1],
       "hyperparameters_values": hyperparameters_values,
       "results_save_path": path,
-      "function_call_string": function_call_string
+      "function_call_string": function_call_string,
+      "save_state":(not "NO_DISPLAY_" in f.__name__),
     }
     function_information.append(dict)
 
@@ -109,6 +112,6 @@ def pipeline(functionlist,
         function_information[i]["function_name"] +
         " did not return the data_dict. Please have a look and make sure the updated data_dict is returned."
       )
-    if save_states_to_cache:
+    if save_states_to_cache and function_information[i]["save_state"]:
       _save_dict(function_information[i]["results_save_path"], data_dict)
   return data_dict
