@@ -79,11 +79,60 @@ def crop( data_dict, crop_location = 300, **args ):
 #ecg feature extraction pipeline stage
 def ecgExtract( data_dict, ** args ):
     
+    assert "X_train" in data_dict.keys( )
+    assert "X_test" in data_dict.keys( )
+    
     for key in [ "X_train", "X_test" ]:
         
         assert key in data_dict.keys( )
         data_dict[ key ] = np.apply_along_axis( ecg_feature_extract, 1, data_dict[ key ])
         
+    return data_dict
+
+#random forest classification
+def rfClassification( data_dict, rfClassification_depth, rfClassification_useValidationSet, rfClassification_makePrediction, ** args ):
+    
+    assert "X_train" in data_dict.keys()
+    assert "y_train" in data_dict.keys()
+    
+    X_train = data_dict[ "X_train" ]
+    y_train = data_dict[ "y_train" ]
+    X_val = None
+    y_val = None
+    X_test = None
+    
+    if rfClassification_useValidationSet:
+        
+        assert "X_val" in data_dict.keys()
+        assert "y_val" in data_dict.keys()
+        
+        X_val = data_dict[ "X_val" ]
+        y_val = data_dict[ "y_val" ]
+        
+    if rfClassification_makePrediction:
+        
+        assert "X_test" in data_dict.keys()
+        X_test = data_dict[ "X_test" ]
+
+    if rfClassification_useValidationSet:
+        
+        data_dict["train_losses"], data_dict["val_losses"], predict_funct = train_random_forest( rfClassification_depth, X_train, y_train, X_val, y_val )
+        data_dict["y_val_hat"] = predict_funct( X_val )
+        data_dict["y_train_hat"] = predict_funct( X_train )
+        
+    else:
+        
+        data_dict["train_losses"], predict_funct = train_random_forest( rfClassification_depth, X_train, y_train )
+        data_dict["y_train_hat"] = predict_funct( X_train )
+
+    if rfClassification_makePrediction:
+        
+        data_dict["y_test"] = predict_funct(X_test)
+
+    if rfClassification_useValidationSet:
+
+        data_dict["y_val_hat"] = predict_funct(X_val)
+
     return data_dict
 
 def descriptive_features( xs ):
@@ -100,21 +149,26 @@ def ecg_feature_extract( signal ):
     
     #descriptive statistics about the signal
     signal_f = descriptive_features( clean )
+    signal_diff_f = descriptive_features( np.diff( clean ))
     
     #descriptive statistics about the peaks
-    peak_f = descriptive_features( filtered[ rpeaks ])
+    peaks = filtered[ rpeaks ]
+    peak_f = descriptive_features( peaks )
+    peak_diff_f = descriptive_features( np.diff( peaks ))
     
     #descriptive statistics about the mean template
-    mean_template_f = descriptive_features( np.mean( templates, axis = 0 ))
+    mean_template = np.mean( templates, axis = 0 )
+    mean_template_f = descriptive_features( mean_template )
+    mean_template_diff_f = descriptive_features( np.diff( mean_template ))
     
-    
-    heart_rate_failure = len( heart_rate ) == 0
-    heart_rate = np.array([ 80 ]) if heart_rate_failure else heart_rate
+    heart_rate = np.array([ 80 ]) if len( heart_rate ) == 0 else heart_rate
+    heart_rate = np.concatenate(( heart_rate, heart_rate )) if len( heart_rate ) == 1 else heart_rate
         
     #descriptive statistics about the heart rate
     heart_rate_f = descriptive_features( heart_rate )
+    heart_rate_diff_f = descriptive_features( np.diff( heart_rate ))
     
-    ecg_features = np.concatenate(( signal_f, peak_f, mean_template_f, heart_rate_f ))
+    ecg_features = np.concatenate(( signal_f, signal_diff_f, peak_f, peak_diff_f, mean_template_f, mean_template_diff_f, heart_rate_f, heart_rate_diff_f ))
     
     return ecg_features
 
@@ -163,3 +217,25 @@ def plot_signal_with_peaks( ts, filtered, rpeaks ):
         y = filtered[ peak ]
         c = plt.Circle(( x, y ), 0.2, color = "red" )
         ax.add_patch( c )
+
+def train_random_forest( max_depth, X_train, y_train, X_val = None, y_val = None ):
+    
+    from sklearn.ensemble import GradientBoostingClassifier
+    from sklearn.metrics import f1_score
+    
+    score = lambda y, y_hat : 1 - f1_score( y, y_hat, average = "micro" )
+
+    clf = GradientBoostingClassifier( max_depth = max_depth, random_state = 0, learning_rate = 0.05, n_estimators = 500, min_samples_split = 20, max_features = 0.2 )
+    clf.fit( X_train, y_train )
+    
+    train_losses = np.repeat([ score( y_train, clf.predict( X_train ))], 2 )
+    predict = lambda X: clf.predict( X )
+    
+    if not X_val is None and not y_val is None:
+        
+        val_losses = np.repeat([ score( y_val, clf.predict( X_val ))], 2 )
+        return train_losses, val_losses, predict
+    else:
+    
+        return train_losses, predict
+

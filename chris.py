@@ -52,8 +52,11 @@ def mlpClassification(data_dict, mlpClassification_epochs, mlpClassification_use
 
   if mlpClassification_useValidationSet:
     data_dict["train_losses"], data_dict["val_losses"], predict_funct = chris_krimskrams.train(mlpClassification_epochs, data_dict["X_train"], data_dict["y_train"], data_dict["X_val"], data_dict["y_val"], 32)
+    data_dict["y_val_hat"]=predict_funct(data_dict["X_val"])
+    data_dict["y_train_hat"]=predict_funct(data_dict["X_train"])
   else:
     data_dict["train_losses"], predict_funct = chris_krimskrams.train(mlpClassification_epochs, data_dict["X_train"], data_dict["y_train"], None, None, 32)
+    data_dict["y_train_hat"]=predict_funct(data_dict["X_train"])
 
   if mlpClassification_makePrediction:
     data_dict["y_test"] = predict_funct(data_dict["X_test"])
