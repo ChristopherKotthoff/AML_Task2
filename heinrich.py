@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from operator import itemgetter
-from biosppy.signals.ecg import ecg
+from biosppy.signals.ecg import ecg, correct_rpeaks
+from pywt import wavedec
 
 #inversion pipeline stage
 def inv( data_dict, inv_threshold = 0.6, ** args ):
@@ -85,7 +86,8 @@ def ecgExtract( data_dict, ** args ):
     for key in [ "X_train", "X_test" ]:
         
         assert key in data_dict.keys( )
-        data_dict[ key ] = np.apply_along_axis( ecg_feature_extract, 1, data_dict[ key ])
+        print( f"extracting from {key}" )
+        data_dict[ key ] = apply_along_axis_tqdm( ecg_feature_extract, 1, data_dict[ key ])
         
     return data_dict
 
@@ -135,10 +137,35 @@ def rfClassification( data_dict, rfClassification_depth, rfClassification_useVal
 
     return data_dict
 
+from tqdm import tqdm
+
+def apply_along_axis_tqdm( f, axis, arr ):
+
+    N = arr.shape[ 1 - axis ] - 1
+    it = iter( tqdm( range( N )))
+    
+    def g( x ): 
+        
+        try:
+            next( it )
+        except:
+            pass
+        return f( x )
+    
+    return np.apply_along_axis( g, axis, arr )
+
 def descriptive_features( xs ):
     
     fs = [ np.min, np.max, np.mean, np.median, np.std ]
     return np.array([ f( xs ) for f in fs ])
+
+def ecg_full( signal ):
+    
+    length = signal_length( signal )
+    clean = signal[ :length ]
+    f = lambda s: ecg( s, 300, show = False )
+    ts, filtered, rpeaks, templates_ts, templates, heart_rate_ts, heart_rate = f( clean )
+    return { "ts": ts, "filtered": filtered, "rpeaks": rpeaks, "templates_ts": templates_ts, "templates": templates, "heart_rate_ts": heart_rate_ts, "heart_rate": heart_rate }
 
 def ecg_feature_extract( signal ):
     
@@ -146,6 +173,7 @@ def ecg_feature_extract( signal ):
     clean = signal[ :length ]
     f = lambda s: ecg( s, 300, show = False )
     ts, filtered, rpeaks, templates_ts, templates, heart_rate_ts, heart_rate = f( clean )
+    rpeaks = correct_rpeaks( signal = clean, rpeaks = rpeaks, sampling_rate = 300, tol = 0.1 )
     
     #descriptive statistics about the signal
     signal_f = descriptive_features( clean )
@@ -168,7 +196,37 @@ def ecg_feature_extract( signal ):
     heart_rate_f = descriptive_features( heart_rate )
     heart_rate_diff_f = descriptive_features( np.diff( heart_rate ))
     
-    ecg_features = np.concatenate(( signal_f, signal_diff_f, peak_f, peak_diff_f, mean_template_f, mean_template_diff_f, heart_rate_f, heart_rate_diff_f ))
+    heart_rate_ts = np.array([ 15. ]) if len( heart_rate_ts ) == 0 else heart_rate_ts
+    heart_rate_ts = np.concatenate(( heart_rate_ts, heart_rate_ts )) if len( heart_rate_ts ) == 1 else heart_rate_ts
+
+    #descriptive statistics about the heart rate timestamp
+    heart_rate_ts_f = descriptive_features( heart_rate_ts )
+    heart_rate_ts_diff_f = descriptive_features( np.diff( heart_rate_ts ))
+    
+    #descriptive statistics about the deviations from mean heartbeat
+    dev_from_mean = lambda template: np.mean(( template - mean_template ) ** 2 )
+    deviations = np.apply_along_axis( dev_from_mean, 1, templates )
+    deviation_f = descriptive_features( deviations )
+    deviation_diff_f = descriptive_features( np.diff( deviations ))
+    
+    #descriptive statistics about the oddest template
+    odd_template = templates[ np.argmax( deviations )]
+    odd_template_f = descriptive_features( odd_template )
+    odd_template_diff_f = descriptive_features( np.diff( odd_template ))
+    
+    def waves( template ):
+        
+        cA, cD4, cD3, cD2, cD1 = wavedec( template, wavelet = "db2", level = 4 )
+        return np.concatenate(( cA, cD4, cD3, cD2 ))
+
+    #get wave coeffs for each template
+    wave_matrix = np.apply_along_axis( waves, 1, templates )
+
+    #descriptive statistics about the wave coeffs over all templates, flattened
+    #this works because every template has exactly 180 datapoints
+    wave_f = np.apply_along_axis( descriptive_features, 0, wave_matrix ).flatten( )
+    
+    ecg_features = np.concatenate(( signal_f, signal_diff_f, peak_f, peak_diff_f, mean_template_f, mean_template_diff_f, heart_rate_f, heart_rate_diff_f, deviation_f, deviation_diff_f, odd_template_f, odd_template_diff_f, heart_rate_ts_f, heart_rate_ts_diff_f, wave_f, ar_f ))
     
     return ecg_features
 
