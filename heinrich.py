@@ -226,7 +226,7 @@ def ecg_feature_extract( signal ):
     #this works because every template has exactly 180 datapoints
     wave_f = np.apply_along_axis( descriptive_features, 0, wave_matrix ).flatten( )
     
-    ecg_features = np.concatenate(( signal_f, signal_diff_f, peak_f, peak_diff_f, mean_template_f, mean_template_diff_f, heart_rate_f, heart_rate_diff_f, deviation_f, deviation_diff_f, odd_template_f, odd_template_diff_f, heart_rate_ts_f, heart_rate_ts_diff_f, wave_f, ar_f ))
+    ecg_features = np.concatenate(( signal_f, signal_diff_f, peak_f, peak_diff_f, mean_template_f, mean_template_diff_f, heart_rate_f, heart_rate_diff_f, deviation_f, deviation_diff_f, odd_template_f, odd_template_diff_f, heart_rate_ts_f, heart_rate_ts_diff_f, wave_f ))
     
     return ecg_features
 
