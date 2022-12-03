@@ -1,3 +1,3 @@
 #! /bin/bash
-cd "/home/ubuntu/aml22/Task2"
+cd "/home/ubuntu/aml22/AML_Task2"
 git pull --rebase --autostash
