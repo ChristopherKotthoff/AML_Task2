@@ -11,7 +11,7 @@ class TrainDataset(Dataset):
     def __init__(self, argX, argy, mean=None, std=None):
         argX = argX.astype(np.float32)
         assert argX.shape[1] % 180 == 0
-        channels = argX.shape[1]/180
+        channels = int(argX.shape[1]/180)
         
         if mean is None or std is None:
             self.mean_X = np.mean(argX, axis=0)
@@ -46,7 +46,7 @@ class TrainDataset(Dataset):
 class TestDataset(TrainDataset):
     def __init__(self, argX, mean, std):
         assert argX.shape[1] % 180 == 0
-        channels = argX.shape[1]/180
+        channels = int(argX.shape[1]/180)
         
         argX = argX.astype(np.float32)
 
@@ -79,7 +79,7 @@ class TestDataset(TrainDataset):
 class MLP(nn.Module):
     def __init__(self, init_channels):
         super(MLP, self).__init__()
-        self.firstStage = self._make_layers(init_channels,[16, 'M', 32, 'M', 64, 'M',128,128,'M',256,256  ,'M',512,512,'M',1024,1024 ,'M'])
+        self.firstStage = self._make_layers(init_channels,[16, 'M', 32, 'M', 64, 'M',128,'M',256,'M',512,'M',1024,'M'])
         self.classifier = nn.Linear(1024, 4)
 
     def forward(self, x):
@@ -154,7 +154,8 @@ def _predict(model, X, mean, std):
             predictions = model(x).detach().cpu().numpy()
             return np.argmax(predictions, axis=1)
 
-def train(epochs, X_train, y_train, X_val, y_val, batch_size=32):
+def train(epochs, X_train, y_train, X_val, y_val, batch_size=64):
+    print(f"using device {device}")
     train_set = TrainDataset(X_train, y_train)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
 
@@ -164,9 +165,12 @@ def train(epochs, X_train, y_train, X_val, y_val, batch_size=32):
     if X_val is not None:
         val_set = TrainDataset(X_val, y_val, train_X_mean, train_X_std)
         val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False)
+    
+    assert X_train.shape[1] % 180 == 0
+    
+    init_channels = int(X_train.shape[1]/180)
 
-
-    model = MLP(X_train.shape[1]).to(device)
+    model = MLP(init_channels).to(device)
 
     optimizer = torch.optim.Adam(model.parameters())
     #criterion = nn.CrossEntropyLoss()
@@ -177,7 +181,7 @@ def train(epochs, X_train, y_train, X_val, y_val, batch_size=32):
     val_loss_timeseries = []
     train_loss_timeseries = []
 
-    for epoch in tqdm(range(epochs)):
+    for epoch in range(epochs):
         losses = []
         model.train()
         for batch_num, input_data in enumerate(train_loader):
@@ -196,11 +200,12 @@ def train(epochs, X_train, y_train, X_val, y_val, batch_size=32):
             losses.append(loss.item())
 
             optimizer.step()
+        
+            if batch_num % 40 == 0:
+                print('\tEpoch %d | Batch %d | Loss %6.2f' % (epoch, batch_num, loss.item()))
+        print('--- TRAINING Epoch %d | Loss %6.2f' % (epoch, sum(losses)/len(losses)))
         train_loss_timeseries.append(sum(losses)/len(losses))
         
-            #if batch_num % 4 == 0:
-                #print('\tEpoch %d | Batch %d | Loss %6.2f' % (epoch, batch_num, loss.item()))
-        #print('--- TRAINING Epoch %d | Loss %6.2f' % (epoch, sum(losses)/len(losses)))
         if X_val is not None:
             valid_losses = []
             model.eval()     # Optional when not using Model Specific layer
@@ -213,8 +218,9 @@ def train(epochs, X_train, y_train, X_val, y_val, batch_size=32):
                 output = model(x)
                 loss = soft_f1_loss(y, output)
                 valid_losses.append(loss.item())
-            #print('--- VALIDATION Epoch %d | Loss %6.5f' % (epoch, sum(valid_losses)/len(valid_losses)))
-            #print("")
+            print('--- VALIDATION Epoch %d | Loss %6.5f' % (epoch, sum(valid_losses)/len(valid_losses)))
+            print("")
+            torch.save(model.state_dict(), f"conv_models/e{epoch}_v{sum(valid_losses)/len(valid_losses)}")
             val_loss_timeseries.append(sum(valid_losses)/len(valid_losses))
             
 

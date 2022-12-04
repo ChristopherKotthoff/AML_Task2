@@ -20,3 +20,5 @@ credentials.txt
 predictions/*
 .vscode/launch.json
 .vscode/launch.json
+conv_models/*
+
