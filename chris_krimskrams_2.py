@@ -10,8 +10,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class TrainDataset(Dataset):
     def __init__(self, argX, argy, mean=None, std=None):
         argX = argX.astype(np.float32)
-        assert argX.shape[1] == 360
-
+        assert argX.shape[1] % 180 == 0
+        channels = argX.shape[1]/180
+        
         if mean is None or std is None:
             self.mean_X = np.mean(argX, axis=0)
             self.std_X = np.std(argX, axis=0)
@@ -21,8 +22,8 @@ class TrainDataset(Dataset):
         self._x = (argX-self.mean_X)/self.std_X
 
         assert np.isnan(self._x).any() == False
-
-        argX.reshape(-1,2,180)
+        
+        self._x = self._x.reshape(-1,channels,180)
 
         self._x = torch.from_numpy(self._x)
 
@@ -44,40 +45,52 @@ class TrainDataset(Dataset):
     
 class TestDataset(TrainDataset):
     def __init__(self, argX, mean, std):
-        #takes df
+        assert argX.shape[1] % 180 == 0
+        channels = argX.shape[1]/180
+        
         argX = argX.astype(np.float32)
 
         self._x = (argX-mean)/std
 
         assert np.isnan(self._x).any() == False
-
+        
+        self._x = self._x.reshape(-1,channels,180)
+        
         self._x = torch.from_numpy(self._x)
         #print(self._y)
         assert self._x.shape[0] > 0
 
-
-         
     def __len__(self):
         return self._x.shape[0]
     
     def __getitem__(self, idx):
         return self._x[idx]
+    
+
+#X = np.arange(4*180).reshape(-1,180)
+#y = np.arange(4).reshape(-1,1)
+
+#t = TrainDataset(X,y)
+
+#t[0][0].shape
+#no
+
 
 class MLP(nn.Module):
-    def __init__(self, inputs):
+    def __init__(self, init_channels):
         super(MLP, self).__init__()
-        self.features = self._make_layers([64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'])
-        self.classifier = nn.Linear(512, 4)
+        self.firstStage = self._make_layers(init_channels,[16, 'M', 32, 'M', 64, 'M',128,128,'M',256,256  ,'M',512,512,'M',1024,1024 ,'M'])
+        self.classifier = nn.Linear(1024, 4)
 
     def forward(self, x):
-        out = self.features(x)
+        out = self.firstStage(x)
         out = out.view(out.size(0), -1)
         out = self.classifier(out)
         return out
     
-    def _make_layers(self, cfg):
+    def _make_layers(self,init_channels, cfg):
         layers = []
-        in_channels = 2
+        in_channels = init_channels
         for x in cfg:
             if x == 'M':
                 layers += [nn.MaxPool1d(kernel_size=2, stride=2)]
@@ -88,6 +101,33 @@ class MLP(nn.Module):
                 in_channels = x
         layers += [nn.AvgPool1d(kernel_size=1, stride=1)]
         return nn.Sequential(*layers)
+'''
+batchsize = 4
+init_channels = 3
+a = torch.arange(batchsize*init_channels*180).reshape(batchsize,init_channels,180).float()
+
+a = nn.Conv1d(parallels, 32, kernel_size=3, padding=1)(a)
+print(a.shape)
+a = nn.MaxPool1d(kernel_size=2, stride=2)(a)
+print(a.shape)
+a = nn.MaxPool1d(kernel_size=2, stride=2)(a)
+print(a.shape)
+a = nn.MaxPool1d(kernel_size=2, stride=2)(a)
+print(a.shape)
+a = nn.MaxPool1d(kernel_size=2, stride=2)(a)
+print(a.shape)
+a = nn.MaxPool1d(kernel_size=2, stride=2)(a)
+print(a.shape)
+a = nn.MaxPool1d(kernel_size=2, stride=2)(a)
+print(a.shape)
+a = nn.MaxPool1d(kernel_size=2, stride=2)(a)
+print(a.shape)
+print(a.shape)
+model = MLP(init_channels)
+out = model(a)
+
+print(out.shape)
+'''
 
 
 
@@ -187,24 +227,3 @@ def train(epochs, X_train, y_train, X_val, y_val, batch_size=32):
         return train_loss_timeseries, val_loss_timeseries, predict_funct
     else:
         return train_loss_timeseries, predict_funct
-
-
-'''
-model = MLP(11)
-l = torch.from_numpy(np.arange(0,22).reshape((2,11))).float()
-print(l)
-res= model(l).detach().numpy()
-res = np.argmax(res, axis=1, keepdims=True)
-print(res)
-'''
-
-'''A = torch.tensor([[0], [2], [1], [0], [1], [3]])
-output = torch.nn.functional.one_hot(A.unsqueeze(0).to(torch.int64), num_classes = 4).reshape(-1,4)
-
-print(output)
-'''
-'''target=torch.tensor([[1,0,0],[0,1,0],[1,0,0]]).float()
-pred = torch.tensor([[0.1,0.6,0.3],[0.0,1,0],[0.3,0.3,0.4]])
-loss = torch.nn.CrossEntropyLoss()(pred,target)
-
-print(loss)'''

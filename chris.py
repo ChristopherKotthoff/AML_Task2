@@ -1,5 +1,6 @@
 import numpy as np
 import chris_krimskrams
+import chris_krimskrams_2
 from biosppy.signals.ecg import christov_segmenter, extract_heartbeats, ecg
 from biosppy.signals.tools import normalize, synchronize
 from tqdm import tqdm
@@ -62,6 +63,36 @@ def mlpClassification(data_dict, mlpClassification_epochs, mlpClassification_use
     data_dict["y_test"] = predict_funct(data_dict["X_test"])
 
   if mlpClassification_useValidationSet:
+    data_dict["y_val_predicted"] = predict_funct(data_dict["X_val"])
+
+
+  return data_dict
+
+
+def mlpConvolution(data_dict, mlpConvolution_epochs, mlpConvolution_useValidationSet, mlpConvolution_makePrediction, **args):
+  #data doesnt have to be normalized.
+
+  assert "X_train" in data_dict.keys()
+  assert "y_train" in data_dict.keys()
+  if mlpConvolution_useValidationSet:
+    assert "X_val" in data_dict.keys()
+    assert "y_val" in data_dict.keys()
+  if mlpConvolution_makePrediction:
+    assert "X_test" in data_dict.keys()
+
+
+  if mlpConvolution_useValidationSet:
+    data_dict["train_losses"], data_dict["val_losses"], predict_funct = chris_krimskrams_2.train(mlpConvolution_epochs, data_dict["X_train"], data_dict["y_train"], data_dict["X_val"], data_dict["y_val"], 32)
+    data_dict["y_val_hat"]=predict_funct(data_dict["X_val"])
+    data_dict["y_train_hat"]=predict_funct(data_dict["X_train"])
+  else:
+    data_dict["train_losses"], predict_funct = chris_krimskrams_2.train(mlpConvolution_epochs, data_dict["X_train"], data_dict["y_train"], None, None, 32)
+    data_dict["y_train_hat"]=predict_funct(data_dict["X_train"])
+
+  if mlpConvolution_makePrediction:
+    data_dict["y_test"] = predict_funct(data_dict["X_test"])
+
+  if mlpConvolution_useValidationSet:
     data_dict["y_val_predicted"] = predict_funct(data_dict["X_val"])
 
 
