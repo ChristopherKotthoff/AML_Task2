@@ -18,6 +18,96 @@ from operator import itemgetter
 from biosppy.signals.ecg import ecg, correct_rpeaks
 from pywt import wavedec
 from heinrich import apply_along_axis_tqdm, signal_length, descriptive_features
+from scipy.fft import fft, fftfreq
+from scipy.optimize import curve_fit
+
+
+#ecg feature extraction pipeline stage
+def ecgExtractOlinFFT12( data_dict, ** args ):
+    
+    assert "X_train" in data_dict.keys( )
+    assert "X_test" in data_dict.keys( )
+    
+    for key in [ "X_train", "X_test" ]:
+        
+        assert key in data_dict.keys( )
+        print( f"extracting from {key}" )
+        
+        data_dict[ key ] = apply_along_axis_tqdm( ecg_feature_extract_olin12, 1, data_dict[ key ])
+        
+    return data_dict
+
+
+def ecg_feature_extract_olin12( signal ):
+    
+    length = signal_length( signal )
+    clean = signal[ :length ]
+    f = lambda s: ecg( s, 300, show = False )
+    ts, filtered, rpeaks, templates_ts, templates, heart_rate_ts, heart_rate = f( clean )
+    rpeaks = correct_rpeaks( signal = clean, rpeaks = rpeaks, sampling_rate = 300, tol = 0.1 )
+    
+    #descriptive statistics about the signal
+    signal_f = descriptive_features( clean )
+    signal_diff_f = descriptive_features( np.diff( clean ))
+
+    #descriptive statistics about the time between peaks
+    period_f = descriptive_features( np.diff(rpeaks["rpeaks"]) )
+    period_diff_f = descriptive_features( np.diff(np.diff(rpeaks["rpeaks"])) ) # how the periods lengths change
+    
+    # Fourier Transform - most relevant frequencies
+    freq_f, _, _ = fft_features(signal, nr_freq=12)
+    
+    #descriptive statistics about the peaks
+    peaks = filtered[ rpeaks ]
+    peak_f = descriptive_features( peaks )
+    peak_diff_f = descriptive_features( np.diff( peaks ))
+    
+    #descriptive statistics about the mean template
+    mean_template = np.mean( templates, axis = 0 )
+    mean_template_f = descriptive_features( mean_template )
+    mean_template_diff_f = descriptive_features( np.diff( mean_template ))
+    
+    heart_rate = np.array([ 80 ]) if len( heart_rate ) == 0 else heart_rate
+    heart_rate = np.concatenate(( heart_rate, heart_rate )) if len( heart_rate ) == 1 else heart_rate
+        
+    #descriptive statistics about the heart rate
+    heart_rate_f = descriptive_features( heart_rate )
+    heart_rate_diff_f = descriptive_features( np.diff( heart_rate ))
+    
+    heart_rate_ts = np.array([ 15. ]) if len( heart_rate_ts ) == 0 else heart_rate_ts
+    heart_rate_ts = np.concatenate(( heart_rate_ts, heart_rate_ts )) if len( heart_rate_ts ) == 1 else heart_rate_ts
+
+    #descriptive statistics about the heart rate timestamp
+    heart_rate_ts_f = descriptive_features( heart_rate_ts )
+    heart_rate_ts_diff_f = descriptive_features( np.diff( heart_rate_ts ))
+    
+    #descriptive statistics about the deviations from mean heartbeat
+    dev_from_mean = lambda template: np.mean(( template - mean_template ) ** 2 )
+    deviations = np.apply_along_axis( dev_from_mean, 1, templates )
+    deviation_f = descriptive_features( deviations )
+    deviation_diff_f = descriptive_features( np.diff( deviations ))
+    
+    #descriptive statistics about the oddest template
+    odd_template = templates[ np.argmax( deviations )]
+    odd_template_f = descriptive_features( odd_template )
+    odd_template_diff_f = descriptive_features( np.diff( odd_template ))
+    
+    def waves( template ):
+        
+        cA, cD4, cD3, cD2, cD1 = wavedec( template, wavelet = "db2", level = 4 )
+        return np.concatenate(( cA, cD4, cD3, cD2 ))
+
+    #get wave coeffs for each template
+    wave_matrix = np.apply_along_axis( waves, 1, templates )
+
+    #descriptive statistics about the wave coeffs over all templates, flattened
+    #this works because every template has exactly 180 datapoints
+    wave_f = np.apply_along_axis( descriptive_features, 0, wave_matrix ).flatten( )
+    
+    ecg_features = np.concatenate(( signal_f, signal_diff_f, period_f, period_diff_f, freq_f, peak_f, peak_diff_f, mean_template_f, mean_template_diff_f, heart_rate_f, heart_rate_diff_f, deviation_f, deviation_diff_f, odd_template_f, odd_template_diff_f, heart_rate_ts_f, heart_rate_ts_diff_f, wave_f ))
+    
+    return ecg_features
+
 
 
 
@@ -185,7 +275,7 @@ def stackedClassification(data_dict, stackedClf_useValidationSet, stackedClf_mak
 
 
 #ecg feature extraction pipeline stage
-def ecgExtractOlin( data_dict, ** args ):
+def ecgExtractOlinFFT( data_dict, ** args ):
     
     assert "X_train" in data_dict.keys( )
     assert "X_test" in data_dict.keys( )
@@ -194,6 +284,7 @@ def ecgExtractOlin( data_dict, ** args ):
         
         assert key in data_dict.keys( )
         print( f"extracting from {key}" )
+        
         data_dict[ key ] = apply_along_axis_tqdm( ecg_feature_extract_olin, 1, data_dict[ key ])
         
     return data_dict
@@ -213,6 +304,10 @@ def ecg_feature_extract_olin( signal ):
 
     #descriptive statistics about the time between peaks
     period_f = descriptive_features( np.diff(rpeaks["rpeaks"]) )
+    period_diff_f = descriptive_features( np.diff(np.diff(rpeaks["rpeaks"])) ) # how the periods lengths change
+    
+    # Fourier Transform - most relevant frequencies
+    freq_f, _, _ = fft_features(signal, nr_freq=35)
     
     #descriptive statistics about the peaks
     peaks = filtered[ rpeaks ]
@@ -261,28 +356,45 @@ def ecg_feature_extract_olin( signal ):
     #this works because every template has exactly 180 datapoints
     wave_f = np.apply_along_axis( descriptive_features, 0, wave_matrix ).flatten( )
     
-    ecg_features = np.concatenate(( signal_f, signal_diff_f, period_f, peak_f, peak_diff_f, mean_template_f, mean_template_diff_f, heart_rate_f, heart_rate_diff_f, deviation_f, deviation_diff_f, odd_template_f, odd_template_diff_f, heart_rate_ts_f, heart_rate_ts_diff_f, wave_f ))
+    ecg_features = np.concatenate(( signal_f, signal_diff_f, period_f, period_diff_f, freq_f, peak_f, peak_diff_f, mean_template_f, mean_template_diff_f, heart_rate_f, heart_rate_diff_f, deviation_f, deviation_diff_f, odd_template_f, odd_template_diff_f, heart_rate_ts_f, heart_rate_ts_diff_f, wave_f ))
     
     return ecg_features
 
 
 
-def periodicity(rpeaks):
-    '''
-    Given a peak mask, this function creates some parameters from the difference of the length of the periods.
+
+
+
+def fft_features(clean_signal, nr_freq=12):
     
-    rpeaks (np.ndarray or list): containing the indices of the peaks. E.g. [10, 210, 410, 614]    
-    '''
+    if len(clean_signal) == 0:
+        return 0
     
-    if rpeaks == []:
-        return np.array([0, 0, 0, 0, 0])
+    if len(clean_signal)%2 == 1:
+        clean_signal = clean_signal[:-1]
     
-    # compute the lengths of each period
-    lengths_of_periods = []
-    for i in range(len(rpeaks)-1):
-        start_idx = rpeaks[i]
-        end_idx = rpeaks[i+1]
-        lengths_of_periods.append(end_idx - start_idx)
-            
-    fs = [ np.min, np.max, np.mean, np.median, np.std ]
-    return np.array([ f( lengths_of_periods ) for f in fs ])
+    SAMPLE_RATE = 300 #Hz
+    DURATION = int(len(clean_signal)/SAMPLE_RATE)
+    N = SAMPLE_RATE * DURATION
+    cut = int((len(clean_signal) - N)/2)
+    
+    # cut a piece from clean_signal that has 
+    if cut == 0:
+        cut_signal = clean_signal
+    cut_signal = clean_signal[cut:-cut]
+    
+    # do the Fast Fourier Transform (FFT)
+    yf = fft(cut_signal)
+    xf = fftfreq(N, 1 / SAMPLE_RATE)
+    
+    # take the most important frequencies
+    pos_xf = xf[:int(len(xf)/2)]
+    pos_yf = np.abs(yf)[:int(len(xf)/2)]
+
+    tups = zip(pos_xf, pos_yf)
+    sorted_tups = sorted(tups, key=lambda x: x[1], reverse=True)[:nr_freq]
+    most_important_freq = [round(freq, 2) for freq, intensity in sorted_tups]   # feed this as feature
+    
+    #plt.plot(xf, abs(yf))
+    
+    return most_important_freq, xf, yf
