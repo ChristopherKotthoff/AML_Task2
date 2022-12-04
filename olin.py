@@ -20,10 +20,11 @@ from pywt import wavedec
 from heinrich import apply_along_axis_tqdm, signal_length, descriptive_features
 from scipy.fft import fft, fftfreq
 from scipy.optimize import curve_fit
+import matplotlib.pyplot as plt
 
-
+import pandas as pd
 #ecg feature extraction pipeline stage
-def ecgExtractOlinFFT12( data_dict, ** args ):
+def ecgExtractOlinFFT26( data_dict, ** args ):
     
     assert "X_train" in data_dict.keys( )
     assert "X_test" in data_dict.keys( )
@@ -33,12 +34,14 @@ def ecgExtractOlinFFT12( data_dict, ** args ):
         assert key in data_dict.keys( )
         print( f"extracting from {key}" )
         
-        data_dict[ key ] = apply_along_axis_tqdm( ecg_feature_extract_olin12, 1, data_dict[ key ])
+        data_dict[ key ] = apply_along_axis_tqdm( ecg_feature_extract_olin_alternative, 1, data_dict[ key ])
         
     return data_dict
 
 
-def ecg_feature_extract_olin12( signal ):
+def ecg_feature_extract_olin_alternative( signal ):
+    
+    nr_freq = 26
     
     length = signal_length( signal )
     clean = signal[ :length ]
@@ -55,7 +58,8 @@ def ecg_feature_extract_olin12( signal ):
     period_diff_f = descriptive_features( np.diff(np.diff(rpeaks["rpeaks"])) ) # how the periods lengths change
     
     # Fourier Transform - most relevant frequencies
-    freq_f, _, _ = fft_features(signal, nr_freq=12)
+    freq_f, _, _ = fft_features(signal, nr_freq=nr_freq)
+    freq_diff_f, _, _ = fft_features(np.diff(signal), nr_freq=nr_freq)
     
     #descriptive statistics about the peaks
     peaks = filtered[ rpeaks ]
@@ -104,7 +108,7 @@ def ecg_feature_extract_olin12( signal ):
     #this works because every template has exactly 180 datapoints
     wave_f = np.apply_along_axis( descriptive_features, 0, wave_matrix ).flatten( )
     
-    ecg_features = np.concatenate(( signal_f, signal_diff_f, period_f, period_diff_f, freq_f, peak_f, peak_diff_f, mean_template_f, mean_template_diff_f, heart_rate_f, heart_rate_diff_f, deviation_f, deviation_diff_f, odd_template_f, odd_template_diff_f, heart_rate_ts_f, heart_rate_ts_diff_f, wave_f ))
+    ecg_features = np.concatenate(( signal_f, signal_diff_f, period_f, period_diff_f, freq_f, freq_diff_f, peak_f, peak_diff_f, mean_template_f, mean_template_diff_f, heart_rate_f, heart_rate_diff_f, deviation_f, deviation_diff_f, odd_template_f, odd_template_diff_f, heart_rate_ts_f, heart_rate_ts_diff_f, wave_f ))
     
     return ecg_features
 
@@ -307,8 +311,9 @@ def ecg_feature_extract_olin( signal ):
     period_diff_f = descriptive_features( np.diff(np.diff(rpeaks["rpeaks"])) ) # how the periods lengths change
     
     # Fourier Transform - most relevant frequencies
-    freq_f, _, _ = fft_features(signal, nr_freq=35)
-    
+    freq_f, _, _ = fft_features(signal, nr_freq=20)
+    freq_diff_f, _, _ = fft_features(np.diff(signal), nr_freq=nr_freq)
+
     #descriptive statistics about the peaks
     peaks = filtered[ rpeaks ]
     peak_f = descriptive_features( peaks )
@@ -356,7 +361,7 @@ def ecg_feature_extract_olin( signal ):
     #this works because every template has exactly 180 datapoints
     wave_f = np.apply_along_axis( descriptive_features, 0, wave_matrix ).flatten( )
     
-    ecg_features = np.concatenate(( signal_f, signal_diff_f, period_f, period_diff_f, freq_f, peak_f, peak_diff_f, mean_template_f, mean_template_diff_f, heart_rate_f, heart_rate_diff_f, deviation_f, deviation_diff_f, odd_template_f, odd_template_diff_f, heart_rate_ts_f, heart_rate_ts_diff_f, wave_f ))
+    ecg_features = np.concatenate(( signal_f, signal_diff_f, period_f, period_diff_f, freq_f, freq_diff_f, peak_f, peak_diff_f, mean_template_f, mean_template_diff_f, heart_rate_f, heart_rate_diff_f, deviation_f, deviation_diff_f, odd_template_f, odd_template_diff_f, heart_rate_ts_f, heart_rate_ts_diff_f, wave_f ))
     
     return ecg_features
 
@@ -364,6 +369,67 @@ def ecg_feature_extract_olin( signal ):
 
 
 
+def fft_features_new(clean_signal, nr_freq=12):
+    
+    if len(clean_signal) == 0:
+        return [0 for _ in range(nr_freq+3)], xf, yf
+    
+    if len(clean_signal)%2 == 1:
+        clean_signal = clean_signal[:-1]
+    
+    SAMPLE_RATE = 300 #Hz
+    DURATION = int(len(clean_signal)/SAMPLE_RATE)
+    N = SAMPLE_RATE * DURATION
+    cut = int((len(clean_signal) - N)/2)
+    
+    # cut a piece from clean_signal that has 
+    if cut == 0:
+        cut_signal = clean_signal
+    cut_signal = clean_signal[cut:-cut]
+    
+    # do the Fast Fourier Transform (FFT)
+    yf = fft(cut_signal)
+    xf = fftfreq(N, 1 / SAMPLE_RATE)
+        
+    # take the most important frequencies
+    pos_xf = xf[:int(len(xf)/2)]
+    pos_yf = np.abs(yf)[:int(len(xf)/2)]
+
+    tups = zip(pos_xf, pos_yf)
+    sorted_tups = sorted(tups, key=lambda x: x[1], reverse=True)[:nr_freq]
+    most_important_freq = [round(freq, 2) for freq, intensity in sorted_tups]   # feed this as feature
+    
+    #plt.plot(xf, abs(yf))
+    
+    # model the width of the spectrum with an exponential 
+    half_xf = pos_xf #xf[:int(len(xf)/2)]
+    half_yf = pos_yf #np.abs(yf)[:int(len(xf)/2)]
+    # filter half_xf and half_yf for NaNs, since curve_fit throws errors (fft seems to be able to ignore NaNs)
+    dic = {"half_xf": half_xf, "half_yf": half_yf}
+    halfs = pd.DataFrame(dic)
+    halfs = halfs.dropna()
+    half_xf_nona = halfs["half_xf"]
+    half_yf_nona = halfs["half_yf"]
+    
+    if len(half_xf_nona) == 0:
+        # Happens very often! Too often!
+        plt.plot(xf, abs(yf))
+        print(most_important_freq)
+        features = most_important_freq
+        features.extend([0 for _ in range(3)])
+        return features, xf, yf
+    
+    def func(x, a, b, c):
+        return a * np.exp(-b * x) + c
+            
+    popt, pcov = curve_fit(func, half_xf_nona, np.abs(half_yf_nona))
+    #plt.plot(half_xf, func(half_xf, *popt))
+    
+    features = most_important_freq
+    features.extend([round(para, 2) for para in popt])
+    #return most_important_freq, xf, yf
+    return features, xf, yf
+    
 
 def fft_features(clean_signal, nr_freq=12):
     
@@ -394,7 +460,7 @@ def fft_features(clean_signal, nr_freq=12):
     tups = zip(pos_xf, pos_yf)
     sorted_tups = sorted(tups, key=lambda x: x[1], reverse=True)[:nr_freq]
     most_important_freq = [round(freq, 2) for freq, intensity in sorted_tups]   # feed this as feature
-    
+    print(most_important_freq)
     #plt.plot(xf, abs(yf))
     
     return most_important_freq, xf, yf
