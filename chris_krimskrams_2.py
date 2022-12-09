@@ -8,64 +8,73 @@ import numpy as np
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class TrainDataset(Dataset):
-    def __init__(self, argX, argy, mean=None, std=None):
+    def __init__(self, argX, FFTfeatures, argy, mean=None, std=None):
         argX = argX.astype(np.float32)
-        assert argX.shape[1] % 180 == 0
-        channels = int(argX.shape[1]/180)
-        
         if mean is None or std is None:
             self.mean_X = np.mean(argX, axis=0)
             self.std_X = np.std(argX, axis=0)
         else:
             self.mean_X = mean
             self.std_X = std
-        self._x = (argX-self.mean_X)/self.std_X
+        argX = (argX-self.mean_X)/self.std_X
 
-        assert np.isnan(self._x).any() == False
+        features = argX[:,:FFTfeatures]
+        convs = argX[:,FFTfeatures:]
+
+        assert convs.shape[1] % 180 == 0
+        channels = int(convs.shape[1]/180)
         
-        self._x = self._x.reshape(-1,channels,180)
 
-        self._x = torch.from_numpy(self._x)
+        self._convs = convs.reshape(-1,channels,180)
+        self._convs = torch.from_numpy(self._convs)
+
+        self._features = features.reshape(-1,FFTfeatures)
+        self._features = torch.from_numpy(self._features)
+
 
         self._y = torch.from_numpy(argy)
-        #print(self._y)
+
         assert self._y.shape[1]==1
         assert not torch.is_floating_point(self._y)
         self._y = torch.nn.functional.one_hot(self._y.unsqueeze(0).to(torch.int64), num_classes = 4).reshape(-1,4).float()
 
-        assert self._x.shape[0] > 0
-        assert self._x.shape[0] == self._y.shape[0]
+        assert self._features.shape[0] > 0
+        assert self._features.shape[0] == self._y.shape[0]
 
          
     def __len__(self):
-        return self._x.shape[0]
+        return self._features.shape[0]
     
     def __getitem__(self, idx):
-        return self._x[idx], self._y[idx]
+        return self._convs[idx], self._features[idx], self._y[idx]
     
 class TestDataset(TrainDataset):
-    def __init__(self, argX, mean, std):
-        assert argX.shape[1] % 180 == 0
-        channels = int(argX.shape[1]/180)
-        
+    def __init__(self, argX,FFTfeatures, mean, std):
         argX = argX.astype(np.float32)
+        self.mean_X = mean
+        self.std_X = std
+        argX = (argX - self.mean_X) / self.std_X
 
-        self._x = (argX-mean)/std
+        features = argX[:, :FFTfeatures]
+        convs = argX[:, FFTfeatures:]
 
-        assert np.isnan(self._x).any() == False
-        
-        self._x = self._x.reshape(-1,channels,180)
-        
-        self._x = torch.from_numpy(self._x)
-        #print(self._y)
-        assert self._x.shape[0] > 0
+        assert convs.shape[1] % 180 == 0
+        channels = int(convs.shape[1] / 180)
+
+        self._convs = convs.reshape(-1, channels, 180)
+        self._convs = torch.from_numpy(self._convs)
+
+        self._features = features.reshape(-1, FFTfeatures)
+        self._features = torch.from_numpy(self._features)
+
+        assert self._features.shape[0] > 0
 
     def __len__(self):
-        return self._x.shape[0]
-    
+        return self._features.shape[0]
+
     def __getitem__(self, idx):
-        return self._x[idx]
-    
+        return self._convs[idx], self._features[idx]
+
 
 #X = np.arange(4*180).reshape(-1,180)
 #y = np.arange(4).reshape(-1,1)
@@ -77,15 +86,28 @@ class TestDataset(TrainDataset):
 
 
 class MLP(nn.Module):
-    def __init__(self, init_channels):
+    def __init__(self, init_channels, FFTfeatures):
         super(MLP, self).__init__()
+        self.only_conv=False
         self.firstStage = self._make_layers(init_channels,[16, 'M', 32, 'M', 64, 'M',128,'M',256,'M',512,'M',1024,'M'])
-        self.classifier = nn.Linear(1024, 4)
+        self.classifier = nn.Linear(1024, 12)
+        self.mlp = nn.Sequential(
+            nn.Linear(FFTfeatures+12, (FFTfeatures+12)*2),
+            nn.Dropout(p=0.5),
+            nn.ReLU(),
+            nn.Linear((FFTfeatures+12)*2, 4),
+            nn.Softmax(dim=1)
+        )
 
-    def forward(self, x):
-        out = self.firstStage(x)
-        out = out.view(out.size(0), -1)
-        out = self.classifier(out)
+
+    def forward(self, conv,x):
+        conv_out = self.firstStage(conv)
+        conv_out = conv_out.view(conv_out.size(0), -1)
+        conv_out = self.classifier(conv_out)
+        if self.only_conv:
+            return conv_out
+        c = torch.concat((x,conv_out), dim=1)
+        out = self.mlp(c)
         return out
     
     def _make_layers(self,init_channels, cfg):
@@ -144,56 +166,93 @@ def soft_f1_loss(y, y_hat):
 
     return torch.mean(1 - soft_f1)
     
-def _predict(model, X, mean, std):
-    test_set  = TestDataset(X, mean, std)
+def _predict(model, X, mean, std, FFTfeatures):
+    test_set  = TestDataset(X,FFTfeatures, mean, std)
     test_loader  = DataLoader(test_set,  batch_size=X.shape[0], shuffle=False)
     model.eval()
     with torch.no_grad():
         for x in test_loader:
-            x = x.to(device).float()
-            predictions = model(x).detach().cpu().numpy()
+            conv, feat = x
+            conv = conv.to(device).float()
+            feat = feat.to(device).float()
+            predictions = model(conv,feat).detach().cpu().numpy()
             return np.argmax(predictions, axis=1)
 
-def train(epochs, X_train, y_train, X_val, y_val, batch_size=64):
+def _saveConvFeaturess(model, X_train, X_test, mean, std, FFTfeatures):
+    train_set  = TestDataset(X_train,FFTfeatures, mean, std)
+    train_loader  = DataLoader(train_set,  batch_size=X_train.shape[0], shuffle=False)
+    test_set  = TestDataset(X_test,FFTfeatures, mean, std)
+    test_loader  = DataLoader(test_set,  batch_size=X_test.shape[0], shuffle=False)
+
+    model.only_conv = True
+    model.eval()
+
+
+    with torch.no_grad():
+        for x in train_loader:
+            conv, feat = x
+            conv = conv.to(device).float()
+            feat = feat.to(device).float()
+            predictions = model(conv,feat).detach().cpu().numpy()
+            np.savetxt("x_train_conv_features.txt",predictions)
+            break
+
+    with torch.no_grad():
+        for x in test_loader:
+            conv, feat = x
+            conv = conv.to(device).float()
+            feat = feat.to(device).float()
+            predictions = model(conv,feat).detach().cpu().numpy()
+            np.savetxt("x_test_conv_features.txt",predictions)
+            break
+
+
+    model.only_conv = False
+
+def train(epochs, X_train, y_train, X_val, y_val, batch_size=64, FFTfeatures=None):
     print(f"using device {device}")
-    train_set = TrainDataset(X_train, y_train)
+    train_set = TrainDataset(X_train,FFTfeatures, y_train)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
 
     train_X_mean = train_set.mean_X
     train_X_std = train_set.std_X
 
     if X_val is not None:
-        val_set = TrainDataset(X_val, y_val, train_X_mean, train_X_std)
+        val_set = TrainDataset(X_val,FFTfeatures, y_val, train_X_mean, train_X_std)
         val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False)
     
-    assert X_train.shape[1] % 180 == 0
-    
-    init_channels = int(X_train.shape[1]/180)
+    assert (X_train.shape[1]-FFTfeatures) % 180 == 0
 
-    model = MLP(init_channels).to(device)
+    init_channels = int((X_train.shape[1]-FFTfeatures)/180)
+
+    model = MLP(init_channels,FFTfeatures).to(device)
 
     optimizer = torch.optim.Adam(model.parameters())
-    #criterion = nn.CrossEntropyLoss()
+    crossELoss = nn.CrossEntropyLoss()
     #mse_loss = nn.MSELoss()
-    #print(model)
+    print(model)
 
     
     val_loss_timeseries = []
     train_loss_timeseries = []
+    from os.path import exists
 
     for epoch in range(epochs):
         losses = []
         model.train()
         for batch_num, input_data in enumerate(train_loader):
             optimizer.zero_grad()
-            x, y = input_data
-            x = x.to(device).float()
+            conv, feat, y = input_data
+            conv = conv.to(device).float()
+            feat = feat.to(device).float()
             y = y.to(device)
 
-            output = model(x)
+            output = model(conv,feat)
             #print(output.shape)
             #print(y.shape)
-            loss = soft_f1_loss(y, output)
+            #loss = soft_f1_loss(y, output)
+            #loss = mse_loss(output,y)
+            loss = crossELoss(output,y)
             #loss = mse_loss(output, y)
             #print(loss)
             loss.backward()
@@ -201,8 +260,8 @@ def train(epochs, X_train, y_train, X_val, y_val, batch_size=64):
 
             optimizer.step()
         
-            if batch_num % 40 == 0:
-                print('\tEpoch %d | Batch %d | Loss %6.2f' % (epoch, batch_num, loss.item()))
+            #if batch_num % 40 == 0:
+                #print('\tEpoch %d | Batch %d | Loss %6.2f' % (epoch, batch_num, loss.item()))
         print('--- TRAINING Epoch %d | Loss %6.2f' % (epoch, sum(losses)/len(losses)))
         train_loss_timeseries.append(sum(losses)/len(losses))
         
@@ -210,26 +269,27 @@ def train(epochs, X_train, y_train, X_val, y_val, batch_size=64):
             valid_losses = []
             model.eval()     # Optional when not using Model Specific layer
             for input_data in val_loader:
-                x, y = input_data
-                x = x.to(device).float()
+                conv, feat, y = input_data
+                conv = conv.to(device).float()
+                feat = feat.to(device).float()
                 y = y.to(device)
 
-
-                output = model(x)
+                output = model(conv, feat)
                 loss = soft_f1_loss(y, output)
                 valid_losses.append(loss.item())
             print('--- VALIDATION Epoch %d | Loss %6.5f' % (epoch, sum(valid_losses)/len(valid_losses)))
-            print("")
+            #print("")
             torch.save(model.state_dict(), f"conv_models/e{epoch}_v{sum(valid_losses)/len(valid_losses)}")
             val_loss_timeseries.append(sum(valid_losses)/len(valid_losses))
             
 
     #plt.semilogy(range(epochs),val_loss_timeseries)
     #plt.show()
-
-    predict_funct = lambda X: _predict(model, X, train_X_mean, train_X_std)
+    predict_funct = lambda X: _predict(model, X, train_X_mean, train_X_std, FFTfeatures)
+    save_funct = lambda Xtrain, Xtest: _saveConvFeaturess(model, Xtrain, Xtest, train_X_mean, train_X_std, FFTfeatures)
 
     if X_val is not None:
-        return train_loss_timeseries, val_loss_timeseries, predict_funct
+        return train_loss_timeseries, val_loss_timeseries, predict_funct,save_funct
     else:
-        return train_loss_timeseries, predict_funct
+        return train_loss_timeseries, predict_funct, save_funct
+    

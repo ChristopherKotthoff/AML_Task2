@@ -82,12 +82,14 @@ def mlpConvolution(data_dict, mlpConvolution_epochs, mlpConvolution_useValidatio
 
 
   if mlpConvolution_useValidationSet:
-    data_dict["train_losses"], data_dict["val_losses"], predict_funct = chris_krimskrams_2.train(mlpConvolution_epochs, data_dict["X_train"], data_dict["y_train"], data_dict["X_val"], data_dict["y_val"], 32)
+    data_dict["train_losses"], data_dict["val_losses"], predict_funct, saveFunction = chris_krimskrams_2.train(mlpConvolution_epochs, data_dict["X_train"], data_dict["y_train"], data_dict["X_val"], data_dict["y_val"], 32, data_dict["FFTPartFeatures"])
     data_dict["y_val_hat"]=predict_funct(data_dict["X_val"])
     data_dict["y_train_hat"]=predict_funct(data_dict["X_train"])
   else:
-    data_dict["train_losses"], predict_funct = chris_krimskrams_2.train(mlpConvolution_epochs, data_dict["X_train"], data_dict["y_train"], None, None, 32)
+    data_dict["train_losses"], predict_funct, saveFunction = chris_krimskrams_2.train(mlpConvolution_epochs, data_dict["X_train"], data_dict["y_train"], None, None, 32, data_dict["FFTPartFeatures"])
     data_dict["y_train_hat"]=predict_funct(data_dict["X_train"])
+
+  saveFunction(data_dict["X_train"],data_dict["X_test"])
 
   if mlpConvolution_makePrediction:
     data_dict["y_test"] = predict_funct(data_dict["X_test"])
@@ -200,75 +202,116 @@ def normalizeTemplates(data_dict,normalizeTemplates_normOverEntireTimeseries=Fal
     return data_dict
 
 
-def medmeanFeatures(data_dict, medmeanFeatures_useMedian=True,medmeanFeatures_useMedianSTD=True, medmeanFeatures_shrinkingFactor=1,**args):
-  assert "heartbeat_templates_train" in data_dict.keys()
-  assert "heartbeat_templates_test" in data_dict.keys()
+def medmeanFeatures(data_dict, medmeanFeatures_useMedian=True, medmeanFeatures_useMedianSTD=True,
+                    medmeanFeatures_shrinkingFactor=1, **args):
+    assert "heartbeat_templates_train" in data_dict.keys()
+    assert "heartbeat_templates_test" in data_dict.keys()
 
-  mitte_features_train = []
-  mitte_features_test = []
-  for templates in data_dict["heartbeat_templates_train"]:
-    np_template = np.array(templates, dtype=np.float32)
-    if medmeanFeatures_useMedian:
-      mitte_features_train.append(np.median(np_template,axis=0))
+    mitte_features_train = []
+    mitte_features_test = []
+    for templates in data_dict["heartbeat_templates_train"]:
+        np_template = np.array(templates, dtype=np.float32)
+        if medmeanFeatures_useMedian:
+            mitte_features_train.append(np.median(np_template, axis=0))
+        else:
+            mitte_features_train.append(np.mean(np_template, axis=0))
+    for templates in data_dict["heartbeat_templates_test"]:
+        np_template = np.array(templates, dtype=np.float32)
+        if medmeanFeatures_useMedian:
+            mitte_features_test.append(np.median(np_template, axis=0))
+        else:
+            mitte_features_test.append(np.mean(np_template, axis=0))
+
+    abweichung_features_train = []
+    abweichung_features_test = []
+    for i, templates in enumerate(data_dict["heartbeat_templates_train"]):
+        np_template = np.array(templates, dtype=np.float32) - mitte_features_train[i]
+        if medmeanFeatures_useMedianSTD:
+            abweichung_features_train.append(np.median(np.abs(np_template), axis=0))
+        else:
+            abweichung_features_train.append(np.sqrt(np.mean(np.square(np_template), axis=0)))
+    for i, templates in enumerate(data_dict["heartbeat_templates_test"]):
+        np_template = np.array(templates, dtype=np.float32) - mitte_features_test[i]
+        if medmeanFeatures_useMedianSTD:
+            abweichung_features_test.append(np.median(np.abs(np_template), axis=0))
+        else:
+            abweichung_features_test.append(np.sqrt(np.mean(np.square(np_template), axis=0)))
+
+    mitte_features_train = np.array(mitte_features_train, dtype=np.float32)
+    mitte_features_test = np.array(mitte_features_test, dtype=np.float32)
+
+    abweichung_features_train = np.array(abweichung_features_train, dtype=np.float32)
+    abweichung_features_test = np.array(abweichung_features_test, dtype=np.float32)
+
+    if medmeanFeatures_shrinkingFactor != 1:
+        mitte_features_train_shrunk = np.empty((mitte_features_train.shape[0], math.ceil(
+            mitte_features_train.shape[1] / float(medmeanFeatures_shrinkingFactor))), dtype=np.float32)
+        mitte_features_test_shrunk = np.empty((mitte_features_test.shape[0], math.ceil(
+            mitte_features_test.shape[1] / float(medmeanFeatures_shrinkingFactor))), dtype=np.float32)
+        abweichung_features_train_shrunk = np.empty((abweichung_features_train.shape[0], math.ceil(
+            abweichung_features_train.shape[1] / float(medmeanFeatures_shrinkingFactor))), dtype=np.float32)
+        abweichung_features_test_shrunk = np.empty((abweichung_features_test.shape[0], math.ceil(
+            abweichung_features_test.shape[1] / float(medmeanFeatures_shrinkingFactor))), dtype=np.float32)
+
+        for col_index, i in enumerate(range(0, mitte_features_train.shape[1], medmeanFeatures_shrinkingFactor)):
+            mitte_features_train_shrunk[:, col_index:col_index + 1] = np.mean(
+                mitte_features_train[:, i:i + medmeanFeatures_shrinkingFactor], axis=1, keepdims=True)
+            mitte_features_test_shrunk[:, col_index:col_index + 1] = np.mean(
+                mitte_features_test[:, i:i + medmeanFeatures_shrinkingFactor], axis=1, keepdims=True)
+            abweichung_features_train_shrunk[:, col_index:col_index + 1] = np.mean(
+                abweichung_features_train[:, i:i + medmeanFeatures_shrinkingFactor], axis=1, keepdims=True)
+            abweichung_features_test_shrunk[:, col_index:col_index + 1] = np.mean(
+                abweichung_features_test[:, i:i + medmeanFeatures_shrinkingFactor], axis=1, keepdims=True)
+
+        mitte_features_train = mitte_features_train_shrunk
+        mitte_features_test = mitte_features_test_shrunk
+        abweichung_features_train = abweichung_features_train_shrunk
+        abweichung_features_test = abweichung_features_test_shrunk
+
+    data_dict["X_train"] = np.append(mitte_features_train, abweichung_features_train, axis=1)
+    data_dict["X_test"] = np.append(mitte_features_test, abweichung_features_test, axis=1)
+
+    return data_dict
+
+
+def medmeanFeaturesImproved(data_dict, medmeanFeaturesImproved_putInMedMeans=False, **args):
+    assert "heartbeat_templates_train" in data_dict.keys()
+    assert "heartbeat_templates_test" in data_dict.keys()
+
+    mitte_features_train = []
+    mitte_features_test = []
+    for templates in data_dict["heartbeat_templates_train"]:
+        np_template = np.array(templates, dtype=np.float32)
+        features = np.quantile(np_template,0.5,axis=0)
+        features = np.append(features,np.quantile(np_template,0.7,axis=0))
+        features = np.append(features,np.quantile(np_template,0.8,axis=0))
+        features = np.append(features,np.quantile(np_template,0.86,axis=0))
+        features = np.append(features,np.quantile(np_template,1.0-0.7,axis=0))
+        features = np.append(features,np.quantile(np_template,1.0-0.8,axis=0))
+        features = np.append(features,np.quantile(np_template,1.0-0.86,axis=0))
+        features = np.append(features,np.quantile(np_template,1.0-0.93,axis=0))
+        mitte_features_train.append(features)
+
+    for templates in data_dict["heartbeat_templates_test"]:
+        np_template = np.array(templates, dtype=np.float32)
+        features = np.quantile(np_template,0.5,axis=0)
+        features = np.append(features,np.quantile(np_template,0.7,axis=0))
+        features = np.append(features,np.quantile(np_template,0.8,axis=0))
+        features = np.append(features,np.quantile(np_template,0.86,axis=0))
+        features = np.append(features,np.quantile(np_template,1.0-0.7,axis=0))
+        features = np.append(features,np.quantile(np_template,1.0-0.8,axis=0))
+        features = np.append(features,np.quantile(np_template,1.0-0.86,axis=0))
+        features = np.append(features,np.quantile(np_template,1.0-0.93,axis=0))
+        mitte_features_test.append(features)
+
+    if medmeanFeaturesImproved_putInMedMeans:
+        data_dict["X_medmean_train"] = np.array(mitte_features_train)
+        data_dict["X_medmean_test"] = np.array(mitte_features_test)
     else:
-      mitte_features_train.append(np.mean(np_template,axis=0))
-  for templates in data_dict["heartbeat_templates_test"]:
-    np_template = np.array(templates, dtype=np.float32)
-    if medmeanFeatures_useMedian:
-      mitte_features_test.append(np.median(np_template,axis=0))
-    else:
-      mitte_features_test.append(np.mean(np_template,axis=0))
+        data_dict["X_train"] = np.array(mitte_features_train)
+        data_dict["X_test"] = np.array(mitte_features_test)
 
-  
-  abweichung_features_train=[]
-  abweichung_features_test=[]
-  for i, templates in enumerate(data_dict["heartbeat_templates_train"]):
-    np_template = np.array(templates, dtype=np.float32)-mitte_features_train[i]
-    if medmeanFeatures_useMedianSTD:
-      abweichung_features_train.append(np.median(np.abs(np_template),axis=0))
-    else:
-      abweichung_features_train.append(np.sqrt(np.mean(np.square(np_template),axis=0)))
-  for i, templates in enumerate(data_dict["heartbeat_templates_test"]):
-    np_template = np.array(templates, dtype=np.float32)-mitte_features_test[i]
-    if medmeanFeatures_useMedianSTD:
-      abweichung_features_test.append(np.median(np.abs(np_template),axis=0))
-    else:
-      abweichung_features_test.append(np.sqrt(np.mean(np.square(np_template),axis=0)))
-  
-  normal = len(mitte_features_train[0])
-  #print(mitte_features_train)
-  #print(normal)
-  #for i in mitte_features_train:
-  #  if len(i)!=normal:
-  #    print(len(i))
-
-  mitte_features_train = np.array(mitte_features_train, dtype=np.float32)
-  mitte_features_test = np.array(mitte_features_test, dtype=np.float32)
-
-  abweichung_features_train=np.array(abweichung_features_train, dtype=np.float32)
-  abweichung_features_test=np.array(abweichung_features_test, dtype=np.float32)
-
-  if medmeanFeatures_shrinkingFactor != 1:
-    mitte_features_train_shrunk = np.empty((mitte_features_train.shape[0],math.ceil(mitte_features_train.shape[1]/float(medmeanFeatures_shrinkingFactor))), dtype=np.float32)
-    mitte_features_test_shrunk = np.empty((mitte_features_test.shape[0],math.ceil(mitte_features_test.shape[1]/float(medmeanFeatures_shrinkingFactor))), dtype=np.float32)
-    abweichung_features_train_shrunk = np.empty((abweichung_features_train.shape[0],math.ceil(abweichung_features_train.shape[1]/float(medmeanFeatures_shrinkingFactor))), dtype=np.float32)
-    abweichung_features_test_shrunk = np.empty((abweichung_features_test.shape[0],math.ceil(abweichung_features_test.shape[1]/float(medmeanFeatures_shrinkingFactor))), dtype=np.float32)
-
-    for col_index, i in enumerate(range(0,mitte_features_train.shape[1],medmeanFeatures_shrinkingFactor)):
-      mitte_features_train_shrunk[:,col_index:col_index+1] = np.mean(mitte_features_train[:,i:i+medmeanFeatures_shrinkingFactor],axis=1,keepdims=True)
-      mitte_features_test_shrunk[:,col_index:col_index+1] = np.mean(mitte_features_test[:,i:i+medmeanFeatures_shrinkingFactor],axis=1,keepdims=True)
-      abweichung_features_train_shrunk[:,col_index:col_index+1] = np.mean(abweichung_features_train[:,i:i+medmeanFeatures_shrinkingFactor],axis=1,keepdims=True)
-      abweichung_features_test_shrunk[:,col_index:col_index+1] = np.mean(abweichung_features_test[:,i:i+medmeanFeatures_shrinkingFactor],axis=1,keepdims=True)
-
-    mitte_features_train = mitte_features_train_shrunk
-    mitte_features_test = mitte_features_test_shrunk
-    abweichung_features_train=abweichung_features_train_shrunk
-    abweichung_features_test=abweichung_features_test_shrunk
- 
-  data_dict["X_train"] = np.append(mitte_features_train,abweichung_features_train,axis=1)
-  data_dict["X_test"] = np.append(mitte_features_test,abweichung_features_test,axis=1)
-
-  return data_dict
+    return data_dict
 
 
 def biosppyECG(data_dict, **args):
@@ -318,6 +361,7 @@ def makeTrainValSet(data_dict,makeTrainValSet_valPercent=0.1, **args):
   assert "X_train" in data_dict.keys()
   assert "X_test" in data_dict.keys()
   assert "y_train" in data_dict.keys()
+
 
   data_dict["X_train"], data_dict["X_val"], data_dict["y_train"], data_dict["y_val"] = train_test_split(data_dict["X_train"],  data_dict["y_train"], test_size=makeTrainValSet_valPercent, random_state=42, shuffle=True)
   
@@ -374,7 +418,7 @@ def balanceStupid(data_dict, **args):
     data_dict["y_train"] = yANDx[:,0:1].astype(np.intc)
     data_dict["X_train"] = yANDx[:,1:]
 
-    if "X_val" in data_dict.keys() and "y_val" in data_dict.keys():
+    '''if "X_val" in data_dict.keys() and "y_val" in data_dict.keys():
       yANDx = np.append(data_dict["y_val"], data_dict["X_val"],axis=1)
       np.random.shuffle(yANDx)
 
@@ -405,7 +449,7 @@ def balanceStupid(data_dict, **args):
       data_dict["y_val"] = yANDx[:,0:1].astype(np.intc)
       data_dict["X_val"] = yANDx[:,1:]
     else:
-      print("Warning. Make sure you are creating a validation set before calling this method in case you want to use one.")
+      print("Warning. Make sure you are creating a validation set before calling this method in case you want to use one.")'''
 
 
     return data_dict
@@ -419,6 +463,23 @@ def NO_DISPLAY_plotLosses(data_dict, **args):
       plt.title(f"hard F1 score on predicted validation set {f1_score(data_dict['y_val'], data_dict['y_val_predicted'],average='micro')}")
     plt.legend()
     plt.show()
+  return data_dict
+
+
+def fuseXandMedMeans(data_dict, **args):
+    assert "X_train" in data_dict.keys()
+    assert "X_test" in data_dict.keys()
+    assert "X_train_backup" in data_dict.keys()
+    assert "X_test_backup" in data_dict.keys()
+
+    data_dict["FFTPartFeatures"] = data_dict["X_train_backup"].shape[1]
+
+    data_dict["X_train"] = np.append(data_dict["X_train_backup"],data_dict["X_medmean_train"],axis=1)
+    data_dict["X_test"] = np.append(data_dict["X_test_backup"],data_dict["X_medmean_test"],axis=1)
+
+    return data_dict
+
+
 '''def synchronizeTemplates(data_dict,**args):
 
     assert "heartbeat_templates_train" in data_dict.keys()

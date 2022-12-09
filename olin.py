@@ -588,6 +588,8 @@ def fft_features_fixed(clean_signal, nr_freq=12):
     tups = zip(pos_xf, pos_yf)
     sorted_tups = sorted(tups, key=lambda x: x[1], reverse=True)[:nr_freq]
     most_important_freq = [round(freq, 2) for freq, intensity in sorted_tups]   # feed this as feature
+
+    #print(most_important_freq)
     #plt.plot(xf, abs(yf))
     #plt.show()
     #print(most_important_freq)

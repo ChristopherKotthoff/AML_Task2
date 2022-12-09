@@ -3,6 +3,7 @@ import numpy as np
 from operator import itemgetter
 from biosppy.signals.ecg import ecg, correct_rpeaks
 from pywt import wavedec
+from tqdm import tqdm
 
 #inversion pipeline stage
 def inv( data_dict, inv_threshold = 0.6, ** args ):
@@ -283,7 +284,7 @@ def train_random_forest( max_depth, X_train, y_train, X_val = None, y_val = None
     
     score = lambda y, y_hat : 1 - f1_score( y, y_hat, average = "micro" )
 
-    clf = GradientBoostingClassifier( max_depth = max_depth, random_state = 0, learning_rate = 0.05, n_estimators = 500, min_samples_split = 20, max_features = 0.2 )
+    clf = GradientBoostingClassifier( max_depth = max_depth, random_state = 0, learning_rate = 0.05, n_estimators = 1500, min_samples_split = 20, max_features = 0.2)
     clf.fit( X_train, y_train )
     
     train_losses = np.repeat([ score( y_train, clf.predict( X_train ))], 2 )

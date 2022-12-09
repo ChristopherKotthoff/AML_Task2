@@ -111,7 +111,7 @@ def train(epochs, X_train, y_train, X_val, y_val, batch_size=32):
     model = MLP(X_train.shape[1]).to(device)
 
     optimizer = torch.optim.Adam(model.parameters())
-    #criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()
     #mse_loss = nn.MSELoss()
     #print(model)
 
@@ -131,7 +131,8 @@ def train(epochs, X_train, y_train, X_val, y_val, batch_size=32):
             output = model(x)
             #print(output.shape)
             #print(y.shape)
-            loss = soft_f1_loss(y, output)
+            #loss = soft_f1_loss(y, output)
+            loss = criterion(output,y )
             #loss = mse_loss(output, y)
             #print(loss)
             loss.backward()
